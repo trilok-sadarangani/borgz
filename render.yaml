@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: borgz-backend
+    env: docker
+    rootDir: backend
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_DB_PERSISTENCE
+        value: "true"
+      - key: DISABLE_SEED_AUTH
+        value: "true"
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: borgz-db
+          property: connectionString
+      - key: AUTH0_DOMAIN
+        value: dev-hl2hhkyfntxf14em.us.auth0.com
+      - key: AUTH0_AUDIENCE
+        sync: false
+      - key: AUTH0_ISSUER
+        value: https://dev-hl2hhkyfntxf14em.us.auth0.com/
+
+  - type: static_site
+    name: borgz-web
+    rootDir: client
+    plan: starter
+    autoDeploy: true
+    buildCommand: npm ci && npx expo export --platform web
+    staticPublishPath: dist
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        sync: false
+      - key: EXPO_PUBLIC_AUTH0_DOMAIN
+        value: dev-hl2hhkyfntxf14em.us.auth0.com
+      - key: EXPO_PUBLIC_AUTH0_CLIENT_ID
+        value: aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG
+      - key: EXPO_PUBLIC_AUTH0_AUDIENCE
+        sync: false
+
+databases:
+  - name: borgz-db
+    plan: starter
+
+

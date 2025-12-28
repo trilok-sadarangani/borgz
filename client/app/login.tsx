@@ -7,6 +7,10 @@ import * as AuthSession from 'expo-auth-session';
 import { getAuth0Config } from '../services/runtimeConfig';
 import { explainAuth0Failure, validateAuth0Config } from '../../shared/auth0Diagnostics';
 
+// React Native global: true in dev, false in production builds.
+// eslint-disable-next-line no-var
+declare const __DEV__: boolean;
+
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
@@ -19,6 +23,10 @@ export default function LoginScreen() {
   const [auth0Error, setAuth0Error] = useState<string | null>(null);
 
   const { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience } = getAuth0Config();
+  // Default: only show seed auth in dev builds.
+  // Allow override via env for staging/dev.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const showSeedAuth = Boolean(__DEV__ || String((process as any)?.env?.EXPO_PUBLIC_SHOW_SEED_AUTH || '').toLowerCase() === 'true');
 
   const discovery = AuthSession.useAutoDiscovery(auth0Domain ? `https://${auth0Domain}` : '');
   const redirectUri = useMemo(() => {
@@ -43,8 +51,9 @@ export default function LoginScreen() {
   );
 
   useEffect(() => {
+    if (!showSeedAuth) return;
     void fetchSeedPlayers();
-  }, [fetchSeedPlayers]);
+  }, [fetchSeedPlayers, showSeedAuth]);
 
   useEffect(() => {
     if (token && player) {
@@ -65,10 +74,11 @@ export default function LoginScreen() {
   }, [response, auth0Domain, auth0ClientId, auth0Audience, redirectUri]);
 
   useEffect(() => {
+    if (!showSeedAuth) return;
     if (!selectedId && seedPlayers.length) {
       setSelectedId(seedPlayers[0].id);
     }
-  }, [seedPlayers, selectedId]);
+  }, [seedPlayers, selectedId, showSeedAuth]);
 
   const selected = useMemo(
     () => seedPlayers.find((p) => p.id === selectedId) || null,
@@ -78,7 +88,9 @@ export default function LoginScreen() {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <Text style={styles.title}>Login</Text>
-      <Text style={styles.subtitle}>Sign in with Auth0 (recommended) or use seed login (dev).</Text>
+      <Text style={styles.subtitle}>
+        {showSeedAuth ? 'Sign in with Auth0 (recommended) or use seed login (dev).' : 'Sign in with Auth0.'}
+      </Text>
 
       {error ? (
         <Pressable onPress={clearError}>
@@ -120,53 +132,57 @@ export default function LoginScreen() {
           </Text>
         ))}
 
-        <Text style={styles.sectionTitle}>Seed player</Text>
-        <View style={styles.playerList}>
-          {seedPlayers.map((p) => {
-            const active = p.id === selectedId;
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => setSelectedId(p.id)}
-                style={[styles.playerChip, active ? styles.playerChipActive : null]}
-                disabled={loading}
-              >
-                <Text style={[styles.playerChipText, active ? styles.playerChipTextActive : null]}>
-                  {p.avatar ? `${p.avatar} ` : ''}
-                  {p.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {showSeedAuth ? (
+          <>
+            <Text style={styles.sectionTitle}>Seed player</Text>
+            <View style={styles.playerList}>
+              {seedPlayers.map((p) => {
+                const active = p.id === selectedId;
+                return (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => setSelectedId(p.id)}
+                    style={[styles.playerChip, active ? styles.playerChipActive : null]}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.playerChipText, active ? styles.playerChipTextActive : null]}>
+                      {p.avatar ? `${p.avatar} ` : ''}
+                      {p.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-        <Text style={styles.sectionTitle}>Seed password</Text>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Seed password"
-          secureTextEntry
-          autoCapitalize="none"
-          style={styles.input}
-        />
+            <Text style={styles.sectionTitle}>Seed password</Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Seed password"
+              secureTextEntry
+              autoCapitalize="none"
+              style={styles.input}
+            />
 
-        <Pressable
-          style={[styles.primaryButton, loading ? styles.buttonDisabled : null]}
-          disabled={loading || !selectedId || !password}
-          onPress={() => {
-            if (!selectedId) return;
-            void login(selectedId, password);
-          }}
-        >
-          <Text style={styles.primaryButtonText}>{loading ? 'Logging in…' : 'Login'}</Text>
-        </Pressable>
+            <Pressable
+              style={[styles.primaryButton, loading ? styles.buttonDisabled : null]}
+              disabled={loading || !selectedId || !password}
+              onPress={() => {
+                if (!selectedId) return;
+                void login(selectedId, password);
+              }}
+            >
+              <Text style={styles.primaryButtonText}>{loading ? 'Logging in…' : 'Login'}</Text>
+            </Pressable>
 
-        <View style={styles.meta}>
-          <Text style={styles.metaText}>
-            {selected ? `Selected: ${selected.name} (${selected.id})` : 'Loading players…'}
-          </Text>
-          <Text style={styles.metaText}>Default seed password: borgz</Text>
-        </View>
+            <View style={styles.meta}>
+              <Text style={styles.metaText}>
+                {selected ? `Selected: ${selected.name} (${selected.id})` : 'Loading players…'}
+              </Text>
+              <Text style={styles.metaText}>Default seed password: borgz</Text>
+            </View>
+          </>
+        ) : null}
       </View>
     </ScrollView>
   );

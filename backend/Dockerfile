@@ -2,6 +2,9 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
+# Prisma engines require OpenSSL at runtime; install it in build too for safety.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (better layer caching)
 COPY backend/package-lock.json backend/package.json ./backend/
 WORKDIR /app/backend
@@ -21,6 +24,9 @@ RUN npm run build
 FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
+
+# Prisma engines require OpenSSL at runtime.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 # Install production deps only
 COPY backend/package-lock.json backend/package.json ./backend/
