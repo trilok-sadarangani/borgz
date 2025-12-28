@@ -3,7 +3,7 @@ services:
     name: borgz-backend
     env: docker
     rootDir: backend
-    plan: starter
+    plan: standard
     autoDeploy: true
     healthCheckPath: /health
     envVars:
@@ -30,7 +30,7 @@ services:
     name: borgz-web
     runtime: static
     rootDir: client
-    plan: free
+    plan: standard
     autoDeploy: true
     buildCommand: npm ci && npx expo export --platform web
     staticPublishPath: dist
@@ -46,6 +46,6 @@ services:
 
 databases:
   - name: borgz-db
-    plan: free
+    plan: basic-256mb
 
 
