@@ -26,7 +26,7 @@ services:
       DATABASE_URL: postgresql://borgz:borgz@db:5432/borgz?schema=public
       ENABLE_DB_PERSISTENCE: "true"
       AUTH0_DOMAIN: dev-hl2hhkyfntxf14em.us.auth0.com
-      AUTH0_AUDIENCE: borgz.com
+      AUTH0_AUDIENCE: api.borgz.com
     ports:
       - "3001:3001"
     depends_on:

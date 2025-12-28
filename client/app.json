@@ -11,7 +11,7 @@
     "extra": {
       "auth0Domain": "dev-hl2hhkyfntxf14em.us.auth0.com",
       "auth0ClientId": "aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG",
-      "auth0Audience": "borgz.com"
+      "auth0Audience": "api.borgz.com"
     },
     "plugins": [
       "expo-router"

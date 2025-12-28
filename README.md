@@ -93,7 +93,7 @@ Set these env vars (e.g. in `backend/.env` or your docker compose env):
 
 ```
 AUTH0_DOMAIN=YOUR_TENANT.us.auth0.com
-AUTH0_AUDIENCE=borgz.com
+AUTH0_AUDIENCE=api.borgz.com
 # Optional (defaults to https://AUTH0_DOMAIN/):
 AUTH0_ISSUER=https://YOUR_TENANT.us.auth0.com/
 ```
@@ -113,7 +113,7 @@ Env var option (e.g. in your shell when running Expo):
 ```
 EXPO_PUBLIC_AUTH0_DOMAIN=dev-hl2hhkyfntxf14em.us.auth0.com
 EXPO_PUBLIC_AUTH0_CLIENT_ID=aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG
-EXPO_PUBLIC_AUTH0_AUDIENCE=borgz.com
+EXPO_PUBLIC_AUTH0_AUDIENCE=api.borgz.com
 ```
 
 Notes:

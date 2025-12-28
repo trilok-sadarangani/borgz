@@ -14,7 +14,7 @@ services:
       - key: DISABLE_SEED_AUTH
         value: "true"
       - key: CORS_ORIGIN
-        sync: false
+        value: https://borgz-web.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: borgz-db
@@ -22,7 +22,7 @@ services:
       - key: AUTH0_DOMAIN
         value: dev-hl2hhkyfntxf14em.us.auth0.com
       - key: AUTH0_AUDIENCE
-        sync: false
+        value: api.borgz.com
       - key: AUTH0_ISSUER
         value: https://dev-hl2hhkyfntxf14em.us.auth0.com/
 
@@ -35,13 +35,13 @@ services:
     staticPublishPath: dist
     envVars:
       - key: EXPO_PUBLIC_API_URL
-        sync: false
+        value: https://borgz-backend.onrender.com
       - key: EXPO_PUBLIC_AUTH0_DOMAIN
         value: dev-hl2hhkyfntxf14em.us.auth0.com
       - key: EXPO_PUBLIC_AUTH0_CLIENT_ID
         value: aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG
       - key: EXPO_PUBLIC_AUTH0_AUDIENCE
-        sync: false
+        value: api.borgz.com
 
 databases:
   - name: borgz-db
