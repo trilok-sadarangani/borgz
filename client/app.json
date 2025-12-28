@@ -8,6 +8,11 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "borgz",
+    "extra": {
+      "auth0Domain": "dev-hl2hhkyfntxf14em.us.auth0.com",
+      "auth0ClientId": "aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG",
+      "auth0Audience": "borgz.com"
+    },
     "plugins": [
       "expo-router"
     ],

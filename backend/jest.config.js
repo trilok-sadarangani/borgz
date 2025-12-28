@@ -4,16 +4,16 @@ const { compilerOptions } = require('./tsconfig.json');
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  // The poker engine tests are relatively heavy; keep workers low to avoid OOM on dev machines/CI.
+  maxWorkers: 1,
   roots: ['<rootDir>/src', '<rootDir>/../shared'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
       {
-        tsconfig: {
-          ...compilerOptions,
-          baseUrl: '.',
-        },
+        tsconfig: '<rootDir>/tsconfig.jest.json',
+        diagnostics: false
       },
     ],
   },

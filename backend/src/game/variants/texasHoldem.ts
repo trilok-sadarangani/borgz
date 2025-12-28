@@ -1,5 +1,6 @@
 import { GameSettings } from '../../types';
 import { GameEngine } from '../engine';
+import { validateGameSettings } from '../../utils/validateSettings';
 
 /**
  * Texas Hold'em variant
@@ -17,8 +18,11 @@ export class TexasHoldem extends GameEngine {
   /**
    * Texas Hold'em specific validation
    */
-  validateSettings(_settings: Partial<GameSettings>): boolean {
-    // Add any Texas Hold'em specific validation here
+  validateSettings(settings: Partial<GameSettings>): boolean {
+    const validation = validateGameSettings(settings);
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Invalid game settings');
+    }
     return true;
   }
 }
@@ -31,9 +35,12 @@ export function createDefaultTexasHoldemSettings(): Omit<GameSettings, 'variant'
     smallBlind: 10,
     bigBlind: 20,
     startingStack: 1000,
+    stackRange: { min: 500, max: 5000 },
     maxPlayers: 9,
-    blindTimer: undefined,
-    timeBank: 30,
+    turnTimerSeconds: 20,
+    timeBankConfig: { banks: 5, secondsPerBank: 20 },
+    ante: { type: 'none', amount: 0 },
+    gameLengthMinutes: undefined,
   };
 }
 

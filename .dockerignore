@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.expo
+**/.next
+**/.turbo
+**/.cache
+**/.DS_Store
+**/*.log
+.git
+.github
+backend/prisma/dev.db
+

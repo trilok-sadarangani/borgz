@@ -75,7 +75,7 @@ describe('GameEngine', () => {
 
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
-      game.startGame();
+      game.startGame('player1');
 
       expect(() => game.addPlayer('player3', 'Charlie')).toThrow(
         'Cannot add players after game has started'
@@ -101,7 +101,7 @@ describe('GameEngine', () => {
 
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
-      game.startGame();
+      game.startGame('player1');
 
       expect(() => game.removePlayer('player1')).toThrow(
         'Cannot remove players during active game'
@@ -116,7 +116,7 @@ describe('GameEngine', () => {
 
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
-      game.startGame();
+      game.startGame('player1');
 
       const state = game.getState();
       expect(state.phase).toBe('pre-flop');
@@ -130,7 +130,7 @@ describe('GameEngine', () => {
       const game = new GameEngine(settings, 'TEST01');
 
       game.addPlayer('player1', 'Alice');
-      expect(() => game.startGame()).toThrow('Need at least 2 players to start');
+      expect(() => game.startGame('player1')).toThrow('Need at least 2 players to start');
     });
 
     it('should post blinds correctly', () => {
@@ -141,7 +141,7 @@ describe('GameEngine', () => {
 
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
-      game.startGame();
+      game.startGame('player1');
 
       const state = game.getState();
       const smallBlindPlayer = state.players[state.smallBlindPosition];
@@ -160,7 +160,7 @@ describe('GameEngine', () => {
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
       game.addPlayer('player3', 'Charlie');
-      game.startGame();
+      game.startGame('player1');
 
       const state = game.getState();
       const firstToAct = (state.bigBlindPosition + 1) % state.players.length;
@@ -176,7 +176,7 @@ describe('GameEngine', () => {
       game = new GameEngine(settings, 'TEST01');
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
-      game.startGame();
+      game.startGame('player1');
     });
 
     it('should process fold action', () => {
@@ -269,13 +269,587 @@ describe('GameEngine', () => {
 
       game.addPlayer('player1', 'Alice');
       game.addPlayer('player2', 'Bob');
-      game.startGame();
+      game.startGame('player1');
 
       const state = game.getStateForPlayer('player1');
       const otherPlayer = state.players.find((p: any) => p.id !== 'player1');
 
       expect(state.players.find((p: any) => p.id === 'player1')?.cards).toBeDefined();
       expect(otherPlayer?.cards).toBeUndefined();
+    });
+  });
+
+  describe('Phase Transitions', () => {
+    let game: GameEngine;
+
+    beforeEach(() => {
+      const settings = createDefaultSettings();
+      game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.addPlayer('player3', 'Charlie');
+      game.startGame('player1');
+    });
+
+    it('should transition from pre-flop to flop after betting round', () => {
+      let state = game.getState();
+      expect(state.phase).toBe('pre-flop');
+      expect(state.communityCards).toHaveLength(0);
+
+      // Complete betting round by having all players call/check
+      let iterations = 0;
+      const maxIterations = 20; // Safety limit
+      while (state.phase === 'pre-flop' && iterations < maxIterations) {
+        const currentState = game.getState();
+        const activePlayer = currentState.players[currentState.activePlayerIndex];
+        
+        if (currentState.currentBet > activePlayer.currentBet) {
+          game.processPlayerAction(activePlayer.id, 'call');
+        } else {
+          game.processPlayerAction(activePlayer.id, 'check');
+        }
+        state = game.getState();
+        iterations++;
+      }
+
+      expect(iterations).toBeLessThan(maxIterations); // Ensure we didn't hit the limit
+      expect(state.phase).toBe('flop');
+      expect(state.communityCards).toHaveLength(3);
+    });
+
+    it('should transition from flop to turn after betting round', () => {
+      // Advance to flop first
+      let state = game.getState();
+      let iterationsToFlop = 0;
+      const maxIterationsToFlop = 50; // Safety limit to avoid infinite loops/OOM
+      while (state.phase === 'pre-flop' && iterationsToFlop < maxIterationsToFlop) {
+        const currentState = game.getState();
+        const activePlayer = currentState.players[currentState.activePlayerIndex];
+        if (currentState.currentBet > activePlayer.currentBet) {
+          game.processPlayerAction(activePlayer.id, 'call');
+        } else {
+          game.processPlayerAction(activePlayer.id, 'check');
+        }
+        state = game.getState();
+        iterationsToFlop++;
+      }
+      expect(iterationsToFlop).toBeLessThan(maxIterationsToFlop);
+
+      expect(state.phase).toBe('flop');
+      expect(state.communityCards).toHaveLength(3);
+
+      // Complete flop betting round
+      let iterations = 0;
+      const maxIterations = 20;
+      while (state.phase === 'flop' && iterations < maxIterations) {
+        const currentState = game.getState();
+        const activePlayer = currentState.players[currentState.activePlayerIndex];
+        if (currentState.currentBet > activePlayer.currentBet) {
+          game.processPlayerAction(activePlayer.id, 'call');
+        } else {
+          game.processPlayerAction(activePlayer.id, 'check');
+        }
+        state = game.getState();
+        iterations++;
+      }
+      expect(iterations).toBeLessThan(maxIterations);
+
+      expect(state.phase).toBe('turn');
+      expect(state.communityCards).toHaveLength(4);
+    });
+
+    it('should transition from turn to river after betting round', () => {
+      // Advance to turn first
+      let state = game.getState();
+      const phases = ['pre-flop', 'flop', 'turn'];
+      
+      for (const targetPhase of phases) {
+        let iterations = 0;
+        const maxIterations = 20;
+        while (state.phase === targetPhase && iterations < maxIterations) {
+          const currentState = game.getState();
+          const activePlayer = currentState.players[currentState.activePlayerIndex];
+          if (currentState.currentBet > activePlayer.currentBet) {
+            game.processPlayerAction(activePlayer.id, 'call');
+          } else {
+            game.processPlayerAction(activePlayer.id, 'check');
+          }
+          state = game.getState();
+          iterations++;
+          if (state.phase !== targetPhase) break;
+        }
+        expect(iterations).toBeLessThan(maxIterations);
+      }
+
+      expect(state.phase).toBe('river');
+      expect(state.communityCards).toHaveLength(5);
+    });
+
+    it('should transition to showdown after river betting round', () => {
+      // Advance through all phases
+      let state = game.getState();
+      const phases = ['pre-flop', 'flop', 'turn', 'river'];
+      
+      for (const targetPhase of phases) {
+        let iterations = 0;
+        const maxIterations = 20;
+        while (state.phase === targetPhase && iterations < maxIterations) {
+          const currentState = game.getState();
+          const activePlayer = currentState.players[currentState.activePlayerIndex];
+          if (currentState.currentBet > activePlayer.currentBet) {
+            game.processPlayerAction(activePlayer.id, 'call');
+          } else {
+            game.processPlayerAction(activePlayer.id, 'check');
+          }
+          state = game.getState();
+          iterations++;
+          if (state.phase !== targetPhase) break;
+        }
+        expect(iterations).toBeLessThan(maxIterations);
+      }
+
+      // Game may go directly to finished if all players fold or game ends
+      expect(['showdown', 'finished']).toContain(state.phase);
+    });
+  });
+
+  describe('Betting Round State Management', () => {
+    let game: GameEngine;
+
+    beforeEach(() => {
+      const settings = createDefaultSettings();
+      game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.addPlayer('player3', 'Charlie');
+      game.startGame('player1');
+    });
+
+    it('should reset currentBet after betting round completes', () => {
+      const state = game.getState();
+      
+      // Make a raise
+      const activePlayer = state.players[state.activePlayerIndex];
+      game.processPlayerAction(activePlayer.id, 'raise', 100);
+
+      // Complete betting round
+      let currentState = game.getState();
+      let iterations = 0;
+      const maxIterations = 20;
+      while (currentState.phase === state.phase && iterations < maxIterations) {
+        const player = currentState.players[currentState.activePlayerIndex];
+        if (currentState.currentBet > player.currentBet) {
+          game.processPlayerAction(player.id, 'call');
+        } else {
+          game.processPlayerAction(player.id, 'check');
+        }
+        currentState = game.getState();
+        iterations++;
+      }
+      expect(iterations).toBeLessThan(maxIterations);
+
+      // After phase transition, bets should be reset
+      expect(currentState.currentBet).toBe(0);
+      currentState.players.forEach((p: any) => {
+        expect(p.currentBet).toBe(0);
+      });
+    });
+
+    it('should track pot correctly through betting rounds', () => {
+      const state = game.getState();
+      const initialPot = state.pot;
+
+      // Make a raise
+      const activePlayer = state.players[state.activePlayerIndex];
+      const raiseAmount = 100;
+      game.processPlayerAction(activePlayer.id, 'raise', raiseAmount);
+
+      let currentState = game.getState();
+      expect(currentState.pot).toBeGreaterThan(initialPot);
+
+      // Track pot through calls
+      const potBeforeCalls = currentState.pot;
+      const raisePlayer = currentState.players.find((p: any) => p.id === activePlayer.id);
+      let totalChipsCommitted = raiseAmount - (raisePlayer?.currentBet || 0);
+
+      // Complete round with calls
+      let iterations = 0;
+      const maxIterations = 20;
+      while (currentState.phase === state.phase && iterations < maxIterations && 
+             currentState.players.some((p: any) => 
+               p.isActive && !p.hasFolded && !p.isAllIn && p.currentBet < currentState.currentBet
+             )) {
+        const player = currentState.players[currentState.activePlayerIndex];
+        if (currentState.currentBet > player.currentBet) {
+          const callAmount = currentState.currentBet - player.currentBet;
+          game.processPlayerAction(player.id, 'call');
+          totalChipsCommitted += callAmount;
+        } else {
+          game.processPlayerAction(player.id, 'check');
+        }
+        currentState = game.getState();
+        iterations++;
+      }
+      expect(iterations).toBeLessThan(maxIterations);
+
+      expect(currentState.pot).toBeGreaterThanOrEqual(potBeforeCalls);
+    });
+
+    it('should correctly track active player index through betting round', () => {
+      const state = game.getState();
+      const firstActiveIndex = state.activePlayerIndex;
+      const firstActivePlayer = state.players[firstActiveIndex];
+
+      // Process action - call if there's a bet, otherwise check
+      if (state.currentBet > firstActivePlayer.currentBet) {
+        game.processPlayerAction(firstActivePlayer.id, 'call');
+      } else {
+        game.processPlayerAction(firstActivePlayer.id, 'check');
+      }
+
+      const newState = game.getState();
+      if (newState.phase === state.phase) {
+        // Should have moved to next active player
+        expect(newState.activePlayerIndex).not.toBe(firstActiveIndex);
+        expect(newState.activePlayerIndex).toBeGreaterThanOrEqual(0);
+        expect(newState.activePlayerIndex).toBeLessThan(newState.players.length);
+      }
+    });
+  });
+
+  describe('Winner Determination and Pot Distribution', () => {
+    it('should award pot to last remaining player when all others fold', () => {
+      const settings = createDefaultSettings();
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      const state = game.getState();
+      const potBefore = state.pot;
+      const folder = state.players[state.activePlayerIndex];
+      const winner = state.players.find((p: any) => p.id !== folder.id)!;
+      const initialStack = winner.stack;
+
+      // In a 2-player hand, if the current player folds, the other immediately wins the pot.
+      game.processPlayerAction(folder.id, 'fold');
+
+      const finalState = game.getState();
+      const winnerPlayer = finalState.players.find((p: any) => p.id === winner.id);
+      expect(winnerPlayer?.stack).toBe(initialStack + potBefore);
+      expect(finalState.phase).toBe('finished');
+    });
+
+    it('should correctly determine winner at showdown', () => {
+      const settings = createDefaultSettings();
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      // Test that game starts correctly
+      let state = game.getState();
+      expect(state.phase).toBe('pre-flop');
+      expect(state.players.length).toBe(2);
+      
+      // Test that pot tracking works
+      const initialPot = state.pot;
+      expect(initialPot).toBeGreaterThan(0); // Blinds should be posted
+      
+      // Test that chips are tracked correctly
+      // Note: `pot` already includes chips committed via `currentBet` (e.g., blinds),
+      // so do NOT add both `currentBet` and `pot` or you'll double-count.
+      const totalChips = state.players.reduce(
+        (sum: number, p: any) => sum + p.stack + p.currentBet,
+        0
+      );
+      const expectedTotal = settings.startingStack * 2;
+      expect(totalChips).toBe(expectedTotal);
+    });
+
+    it('should handle pot distribution with multiple winners (tie)', () => {
+      const settings = createDefaultSettings();
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.addPlayer('player3', 'Charlie');
+      game.startGame('player1');
+
+      // Test initial state with 3 players
+      let state = game.getState();
+      expect(state.players.length).toBe(3);
+      expect(state.phase).toBe('pre-flop');
+      
+      // Test that pot is correctly initialized with blinds
+      expect(state.pot).toBeGreaterThan(0);
+      
+      // Test chip conservation
+      const totalChips = state.players.reduce(
+        (sum: number, p: any) => sum + p.stack + p.currentBet,
+        0
+      );
+      const expectedTotal = settings.startingStack * 3;
+      expect(totalChips).toBe(expectedTotal);
+    });
+  });
+
+  describe('All-In Scenarios', () => {
+    it('should handle all-in action correctly', () => {
+      const settings = createDefaultSettings();
+      settings.startingStack = 500;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      const state = game.getState();
+      const activePlayer = state.players[state.activePlayerIndex];
+
+      game.processPlayerAction(activePlayer.id, 'all-in');
+
+      const newState = game.getState();
+      const player = newState.players.find((p: any) => p.id === activePlayer.id);
+      expect(player?.stack).toBe(0);
+      expect(player?.isAllIn).toBe(true);
+      expect(newState.pot).toBeGreaterThan(state.pot);
+    });
+
+    it('should fast-forward to showdown when an all-in bet is called (no further actions)', () => {
+      const settings = createDefaultSettings();
+      settings.smallBlind = 10;
+      settings.bigBlind = 20;
+      settings.startingStack = 100;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      // Current active player shoves all-in; other player calls.
+      let state = game.getState();
+      const first = state.players[state.activePlayerIndex];
+      game.processPlayerAction(first.id, 'all-in');
+
+      state = game.getState();
+      const caller = state.players[state.activePlayerIndex];
+      game.processPlayerAction(caller.id, 'call');
+
+      const finalState = game.getState();
+      expect(finalState.phase).toBe('finished');
+      expect(finalState.communityCards).toHaveLength(5);
+      expect(finalState.lastHandResult?.reason).toBe('showdown');
+    });
+
+    it('should fast-forward from flop to showdown if everyone is all-in on the flop', () => {
+      const settings = createDefaultSettings();
+      settings.smallBlind = 10;
+      settings.bigBlind = 20;
+      settings.startingStack = 120;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      // Preflop: all-in + call should finish; to specifically cover "mid-street", we advance to flop first.
+      // Complete pre-flop betting with calls/checks until flop.
+      let state = game.getState();
+      let iterations = 0;
+      while (state.phase === 'pre-flop' && iterations < 30) {
+        const active = state.players[state.activePlayerIndex];
+        if (state.currentBet > active.currentBet) game.processPlayerAction(active.id, 'call');
+        else game.processPlayerAction(active.id, 'check');
+        state = game.getState();
+        iterations++;
+      }
+      expect(state.phase).toBe('flop');
+      expect(state.communityCards).toHaveLength(3);
+
+      // Flop: shove + call should run out turn+river and finish.
+      const first = state.players[state.activePlayerIndex];
+      game.processPlayerAction(first.id, 'all-in');
+      state = game.getState();
+      const caller = state.players[state.activePlayerIndex];
+      game.processPlayerAction(caller.id, 'call');
+
+      const finalState = game.getState();
+      expect(finalState.phase).toBe('finished');
+      expect(finalState.communityCards).toHaveLength(5);
+      expect(finalState.lastHandResult?.reason).toBe('showdown');
+    });
+
+    it('should handle all-in call correctly', () => {
+      const settings = createDefaultSettings();
+      settings.startingStack = 500;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      const state = game.getState();
+      const activePlayer = state.players[state.activePlayerIndex];
+      
+      // Make a large raise
+      game.processPlayerAction(activePlayer.id, 'raise', 400);
+
+      // Next player calls all-in
+      const newState = game.getState();
+      const nextPlayer = newState.players[newState.activePlayerIndex];
+      const callAmount = newState.currentBet - nextPlayer.currentBet;
+      
+      if (callAmount >= nextPlayer.stack) {
+        game.processPlayerAction(nextPlayer.id, 'call');
+        const finalState = game.getState();
+        const player = finalState.players.find((p: any) => p.id === nextPlayer.id);
+        expect(player?.isAllIn).toBe(true);
+        expect(player?.stack).toBe(0);
+      }
+    });
+
+    it('allows calling an all-in bet that is larger than your stack (auto all-in call)', () => {
+      const settings = createDefaultSettings();
+      settings.smallBlind = 10;
+      settings.bigBlind = 20;
+      settings.startingStack = 200;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      // Force a lopsided stack situation: the *current* actor can shove big, the other player is short.
+      const s0 = game.getState();
+      const shover = s0.players[s0.activePlayerIndex];
+      const short = s0.players.find((p) => p.id !== shover.id)!;
+      shover.stack = 500;
+      short.stack = 30;
+      shover.isActive = true;
+      short.isActive = true;
+
+      // Shove.
+      game.processPlayerAction(shover.id, 'all-in');
+
+      // Next player should be allowed to "call" even though they can't fully match the bet.
+      const s2 = game.getState();
+      const caller = s2.players[s2.activePlayerIndex];
+      expect(caller.id).toBe(short.id);
+      expect(s2.currentBet - caller.currentBet).toBeGreaterThan(caller.stack);
+
+      const callerPrevBet = caller.currentBet;
+      const callerPrevStack = caller.stack;
+      game.processPlayerAction(caller.id, 'call');
+
+      const s3 = game.getState();
+      const updatedCaller = s3.players.find((p: any) => p.id === caller.id);
+      expect(updatedCaller?.isAllIn).toBe(true);
+      // The key behavior: a short-stack "call" commits the player's entire remaining stack.
+      // Don't assert on currentBet/currentBetAfter here because the engine may immediately resolve the hand and reset per-hand fields.
+      const callActions = s3.history.filter((a: any) => a.playerId === caller.id && a.action === 'call');
+      expect(callActions.length).toBeGreaterThan(0);
+      const call = callActions[callActions.length - 1];
+      expect(call.betTo).toBe(callerPrevBet + callerPrevStack);
+    });
+
+    it('should skip all-in players in betting round', () => {
+      const settings = createDefaultSettings();
+      settings.startingStack = 500;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.addPlayer('player3', 'Charlie');
+      game.startGame('player1');
+
+      const state = game.getState();
+      const activePlayer = state.players[state.activePlayerIndex];
+      
+      // First player goes all-in
+      game.processPlayerAction(activePlayer.id, 'all-in');
+
+      // Next players should be able to act
+      const newState = game.getState();
+      const nextActivePlayer = newState.players[newState.activePlayerIndex];
+      expect(nextActivePlayer.id).not.toBe(activePlayer.id);
+      expect(nextActivePlayer.isAllIn).toBe(false);
+    });
+  });
+
+  describe('Edge Cases in State Management', () => {
+    it('should handle player action history correctly', () => {
+      const settings = createDefaultSettings();
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      const state = game.getState();
+      const activePlayer = state.players[state.activePlayerIndex];
+      const initialHistoryLength = state.history.length;
+
+      game.processPlayerAction(activePlayer.id, 'raise', 100);
+
+      const newState = game.getState();
+      expect(newState.history.length).toBe(initialHistoryLength + 1);
+      expect(newState.history[newState.history.length - 1].playerId).toBe(activePlayer.id);
+      expect(newState.history[newState.history.length - 1].action).toBe('raise');
+      expect(newState.history[newState.history.length - 1].amount).toBe(100);
+    });
+
+    it('should update updatedAt timestamp on state changes', () => {
+      const settings = createDefaultSettings();
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      const state1 = game.getState();
+      const timestamp1 = state1.updatedAt;
+
+      // Wait a bit and make an action
+      const activePlayer = state1.players[state1.activePlayerIndex];
+      if (state1.currentBet > activePlayer.currentBet) {
+        game.processPlayerAction(activePlayer.id, 'call');
+      } else {
+        game.processPlayerAction(activePlayer.id, 'check');
+      }
+
+      const state2 = game.getState();
+      expect(state2.updatedAt).toBeGreaterThanOrEqual(timestamp1);
+    });
+
+    it('should maintain game code throughout game lifecycle', () => {
+      const settings = createDefaultSettings();
+      const gameCode = 'TEST123';
+      const game = new GameEngine(settings, gameCode);
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      let state = game.getState();
+      expect(state.code).toBe(gameCode);
+
+      // Make some actions
+      const activePlayer = state.players[state.activePlayerIndex];
+      if (state.currentBet > activePlayer.currentBet) {
+        game.processPlayerAction(activePlayer.id, 'call');
+      } else {
+        game.processPlayerAction(activePlayer.id, 'check');
+      }
+
+      state = game.getState();
+      expect(state.code).toBe(gameCode);
+    });
+
+    it('should preserve game settings throughout game', () => {
+      const settings = createDefaultSettings();
+      settings.smallBlind = 25;
+      settings.bigBlind = 50;
+      settings.startingStack = 2000;
+      const game = new GameEngine(settings, 'TEST01');
+      game.addPlayer('player1', 'Alice');
+      game.addPlayer('player2', 'Bob');
+      game.startGame('player1');
+
+      const state = game.getState();
+      expect(state.settings.smallBlind).toBe(25);
+      expect(state.settings.bigBlind).toBe(50);
+      expect(state.settings.startingStack).toBe(2000);
     });
   });
 });

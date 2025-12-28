@@ -1,7 +1,10 @@
 import { GameEngine } from '../game/engine';
 import { GameState, GameSettings } from '../types';
 import { TexasHoldem, createDefaultTexasHoldemSettings } from '../game/variants/texasHoldem';
-import { generateGameCode } from '../utils/gameCode';
+import { generateGameCode, isValidGameCode } from '../utils/gameCode';
+import { validateGameSettings } from '../utils/validateSettings';
+import { gameHistoryService } from './gameHistoryService';
+import { dbPersistenceService } from './dbPersistenceService';
 
 /**
  * Manages active game instances
@@ -9,14 +12,23 @@ import { generateGameCode } from '../utils/gameCode';
 export class GameService {
   private games: Map<string, GameEngine> = new Map();
   private gameCodes: Map<string, string> = new Map(); // code -> gameId
+  private gameMeta: Map<string, { clubId?: string; createdAt: number }> = new Map(); // gameId -> meta
 
   /**
    * Creates a new game
    */
-  createGame(settings?: Partial<GameSettings>, customCode?: string): {
+  createGame(settings?: Partial<GameSettings>, customCode?: string, clubId?: string): {
     gameId: string;
     code: string;
   } {
+    // Validate settings if provided
+    if (settings) {
+      const validation = validateGameSettings(settings);
+      if (!validation.valid) {
+        throw new Error(validation.error || 'Invalid game settings');
+      }
+    }
+
     const defaultSettings = createDefaultTexasHoldemSettings();
     const fullSettings: GameSettings = {
       ...defaultSettings,
@@ -24,7 +36,16 @@ export class GameService {
       variant: settings?.variant || 'texas-holdem',
     };
 
-    let code = customCode || generateGameCode();
+    // Validate the final merged settings
+    const finalValidation = validateGameSettings(fullSettings);
+    if (!finalValidation.valid) {
+      throw new Error(finalValidation.error || 'Invalid game settings');
+    }
+
+    let code = (customCode || generateGameCode()).toUpperCase();
+    if (customCode && !isValidGameCode(code)) {
+      throw new Error('Invalid game code format. Use 6-8 characters A-Z and 0-9.');
+    }
     // Ensure code is unique
     while (this.gameCodes.has(code)) {
       code = generateGameCode();
@@ -35,6 +56,30 @@ export class GameService {
 
     this.games.set(gameId, game);
     this.gameCodes.set(code, gameId);
+    this.gameMeta.set(gameId, { clubId, createdAt: Date.now() });
+
+    const state = game.getState();
+    gameHistoryService.registerGame({
+      gameId,
+      code: state.code,
+      clubId,
+      variant: state.variant,
+      settings: state.settings,
+      createdAt: state.createdAt,
+      endedAt: undefined,
+    });
+
+    // Best-effort DB persistence (behind ENABLE_DB_PERSISTENCE=true).
+    void dbPersistenceService
+      .persistGameCreated({
+        gameId,
+        code: state.code,
+        clubId,
+        variant: state.variant,
+        settings: state.settings,
+        createdAt: state.createdAt,
+      })
+      .catch(() => {});
 
     return { gameId, code };
   }
@@ -50,7 +95,8 @@ export class GameService {
    * Gets a game by code
    */
   getGameByCode(code: string): GameEngine | undefined {
-    const gameId = this.gameCodes.get(code);
+    const normalized = code.toUpperCase();
+    const gameId = this.gameCodes.get(normalized);
     if (!gameId) {
       return undefined;
     }
@@ -74,22 +120,40 @@ export class GameService {
       const code = game.getState().code;
       this.games.delete(gameId);
       this.gameCodes.delete(code);
+      this.gameMeta.delete(gameId);
+
+      // Keep history around; just mark ended.
+      const endedAt = Date.now();
+      gameHistoryService.markGameEnded(gameId, endedAt);
+      gameHistoryService.closeAllOpenSessionsForGame(gameId, endedAt);
+      void dbPersistenceService.persistGameEnded(gameId, endedAt).catch(() => {});
     }
   }
 
   /**
    * Lists all active games
    */
-  listGames(): Array<{ gameId: string; code: string; phase: string; playerCount: number }> {
+  listGames(): Array<{ gameId: string; code: string; phase: string; playerCount: number; clubId?: string }> {
     return Array.from(this.games.entries()).map(([gameId, game]) => {
       const state = game.getState();
+      const meta = this.gameMeta.get(gameId);
       return {
         gameId,
         code: state.code,
         phase: state.phase,
         playerCount: state.players.length,
+        clubId: meta?.clubId,
       };
     });
+  }
+
+  /**
+   * Lists active games for a specific club
+   */
+  listGamesByClub(clubId: string): Array<{ gameId: string; code: string; phase: string; playerCount: number }> {
+    return this.listGames()
+      .filter((g) => g.clubId === clubId)
+      .map(({ clubId: _clubId, ...rest }) => rest);
   }
 
   /**

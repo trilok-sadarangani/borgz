@@ -4,6 +4,10 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import gameRoutes from './routes/gameRoutes';
+import authRoutes from './routes/authRoutes';
+import clubRoutes from './routes/clubRoutes';
+import historyRoutes from './routes/historyRoutes';
+import statsRoutes from './routes/statsRoutes';
 import { setupGameSocket } from './sockets/gameSocket';
 
 dotenv.config();
@@ -24,12 +28,16 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Poker server is running' });
 });
 
 // API routes
 app.use('/api/games', gameRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/clubs', clubRoutes);
+app.use('/api/history', historyRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Socket.io connection handling
 setupGameSocket(io);

@@ -58,11 +58,10 @@ describe('Game Rules', () => {
         expect(result.error).toContain('No bet to call');
       });
 
-      it('should not allow call when insufficient chips', () => {
+      it('should allow call when insufficient chips (all-in call)', () => {
         const player = createPlayer({ stack: 10, currentBet: 0 });
         const result = validateAction(player, 'call', undefined, 50, 20);
-        expect(result.valid).toBe(false);
-        expect(result.error).toContain('Insufficient chips');
+        expect(result.valid).toBe(true);
       });
     });
 
@@ -89,9 +88,11 @@ describe('Game Rules', () => {
 
       it('should enforce minimum raise', () => {
         const player = createPlayer();
-        const result = validateAction(player, 'raise', 60, 50, 20);
+        // minRaise is a raise-to threshold (e.g. currentBet + bigBlind/lastRaise)
+        // currentBet=50, minRaiseTo=70 => raising to 60 is too small.
+        const result = validateAction(player, 'raise', 60, 50, 70);
         expect(result.valid).toBe(false);
-        expect(result.error).toContain('Raise must be at least');
+        expect(result.error).toContain('Raise to must be at least');
       });
 
       it('should not allow raise when insufficient chips', () => {

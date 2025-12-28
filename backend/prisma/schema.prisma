@@ -1,0 +1,226 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Player model - supports both seed players and future authenticated users
+model Player {
+  id        String   @id @default(uuid())
+  name      String
+  avatar    String?
+  email     String?  @unique // For future auth integration
+  isSeed    Boolean  @default(false) // True for seed players, false for auth users
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ownedClubs      Club[]         @relation("ClubOwner") // Clubs owned by this player
+  clubMemberships ClubMember[]
+  gamePlayers     GamePlayer[]
+  playerActions   PlayerAction[]
+  playerStats     PlayerStats?
+
+  @@index([email])
+  @@index([isSeed])
+}
+
+// Club model
+model Club {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  inviteCode  String   @unique // Unique code for invitations
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  owner   Player       @relation("ClubOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members ClubMember[]
+  games   Game[]
+
+  @@index([ownerId])
+  @@index([inviteCode])
+}
+
+// Club membership (many-to-many relationship)
+model ClubMember {
+  id       String   @id @default(uuid())
+  clubId   String
+  playerId String
+  role     String   @default("member") // 'owner' or 'member'
+  joinedAt DateTime @default(now())
+
+  // Relations
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, playerId])
+  @@index([clubId])
+  @@index([playerId])
+}
+
+// Game model
+model Game {
+  id                 String  @id @default(uuid())
+  code               String  @unique // Game code for joining
+  variant            String // 'texas-holdem', 'omaha', 'omaha-hi-lo'
+  phase              String  @default("waiting") // 'waiting', 'pre-flop', 'flop', 'turn', 'river', 'showdown', 'finished'
+  clubId             String? // Optional - games can be club-specific or instant
+  pot                Int     @default(0)
+  currentBet         Int     @default(0)
+  dealerPosition     Int     @default(0)
+  smallBlindPosition Int     @default(0)
+  bigBlindPosition   Int     @default(0)
+  activePlayerIndex  Int     @default(0)
+
+  // Game settings (stored as JSON for flexibility)
+  settings Json // GameSettings: variant, smallBlind, bigBlind, startingStack, maxPlayers, etc.
+
+  // Community cards (stored as JSON array)
+  communityCards Json? // Card[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+
+  // Relations
+  club          Club?          @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  players       GamePlayer[]
+  hands         GameHand[]
+  history       GameHistory[]  @relation("GameHistory")
+  playerActions PlayerAction[]
+
+  @@index([code])
+  @@index([clubId])
+  @@index([phase])
+  @@index([createdAt])
+}
+
+// Game players (junction table for players in games)
+model GamePlayer {
+  id         String  @id @default(uuid())
+  gameId     String
+  playerId   String
+  position   Int
+  stack      Int
+  currentBet Int     @default(0)
+  isActive   Boolean @default(true)
+  isAllIn    Boolean @default(false)
+  hasFolded  Boolean @default(false)
+  finalStack Int? // Stack at end of game
+  winnings   Int? // Amount won in this game
+
+  // Hole cards (stored as JSON array, only visible to player)
+  cards Json? // Card[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, playerId])
+  @@index([gameId])
+  @@index([playerId])
+}
+
+// Game hands (individual hand records within a game)
+model GameHand {
+  id             String   @id @default(uuid())
+  gameId         String
+  handNumber     Int // Sequential hand number within the game
+  phase          String // Phase when hand ended: 'pre-flop', 'flop', 'turn', 'river', 'showdown'
+  endReason      String? // 'fold' | 'showdown' (optional for backwards compatibility)
+  winnerIds      String[] // Array of player IDs who won (for ties)
+  winners        Json? // [{ playerId: string, amount: number }]
+  pot            Int
+  communityCards Json? // Card[] - final community cards
+  table          Json? // { seats: string[], dealerPosition: number, smallBlindPosition: number, bigBlindPosition: number }
+  stacksStartByPlayerId Json? // Record<string, number>
+  stacksEndByPlayerId   Json? // Record<string, number>
+
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  // Relations
+  game    Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  actions PlayerAction[]
+
+  @@index([gameId])
+  @@index([gameId, handNumber])
+}
+
+// Player actions (action history for stats)
+model PlayerAction {
+  id        String   @id @default(uuid())
+  gameId    String
+  handId    String? // Optional - some actions might be game-level
+  playerId  String
+  action    String // 'fold', 'check', 'call', 'raise', 'all-in'
+  amount    Int? // Amount for raise/call
+  phase     String // Game phase when action occurred
+  position  Int // Player position at time of action
+  betTo         Int? // Player total bet after this action
+  currentBetAfter Int? // Table current bet after this action
+  timestamp DateTime @default(now())
+
+  // Relations
+  game   Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  hand   GameHand? @relation(fields: [handId], references: [id], onDelete: Cascade)
+  player Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([handId])
+  @@index([playerId])
+  @@index([timestamp])
+}
+
+// Player statistics (aggregated stats)
+model PlayerStats {
+  id                 String @id @default(uuid())
+  playerId           String @unique
+  totalHands         Int    @default(0)
+  handsWon           Int    @default(0)
+  winPercentage      Float  @default(0)
+  vpip               Float  @default(0) // Voluntarily Put $ In Pot
+  pfr                Float  @default(0) // Pre-Flop Raise
+  threeBetPercentage Float  @default(0)
+  cbetPercentage     Float  @default(0) // Continuation bet
+  aggressionFactor   Float  @default(0)
+  averagePotSize     Float  @default(0)
+  totalWinnings      Int    @default(0)
+
+  // Position-based stats (stored as JSON)
+  positionStats Json @default("{}") // { [position: string]: { hands: number, vpip: number, pfr: number } }
+
+  lastUpdated DateTime @default(now()) @updatedAt
+
+  // Relations
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Game history (stores game state snapshots/events)
+// Game history (stores game state snapshots/events)
+model GameHistory {
+  id        String   @id @default(uuid())
+  gameId    String
+  eventType String // 'action', 'phase_change', 'player_joined', etc.
+  data      Json // Event data
+  timestamp DateTime @default(now())
+
+  // Relations
+  game Game @relation("GameHistory", fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([timestamp])
+}

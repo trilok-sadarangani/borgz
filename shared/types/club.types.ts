@@ -8,6 +8,11 @@ export interface Club {
   memberIds: string[];
   createdAt: number;
   updatedAt: number;
+  /**
+   * Shareable code used to join this club.
+   * Present in Phase 1 (in-memory service); may be restricted later.
+   */
+  inviteCode?: string;
 }
 
 export interface ClubMember {

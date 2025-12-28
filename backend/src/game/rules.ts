@@ -37,8 +37,11 @@ export function validateAction(
       if (currentBet === player.currentBet) {
         return { valid: false, error: 'No bet to call' };
       }
+      // Allow "short call" (all-in call). Player commits remaining chips and stays in the hand.
+      // This is common poker behavior when facing an all-in bet larger than your stack.
       if (callAmount > availableChips) {
-        return { valid: false, error: 'Insufficient chips to call' };
+        if (availableChips <= 0) return { valid: false, error: 'No chips to call' };
+        return { valid: true };
       }
       return { valid: true };
 
@@ -53,9 +56,9 @@ export function validateAction(
       if (amount <= currentBet) {
         return { valid: false, error: 'Raise must be higher than current bet' };
       }
-      const raiseAmount = amount - currentBet;
-      if (raiseAmount < minRaise) {
-        return { valid: false, error: `Raise must be at least ${minRaise}` };
+      // `minRaise` is the minimum *raise-to* total (e.g. currentBet + lastRaise/bigBlind).
+      if (amount < minRaise) {
+        return { valid: false, error: `Raise to must be at least ${minRaise}` };
       }
       return { valid: true };
 
