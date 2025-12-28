@@ -1,6 +1,7 @@
 export type ApiResult<T> = { success: true } & T | { success: false; error: string };
 
 const DEFAULT_API_BASE_URL = 'http://localhost:3001';
+const DEFAULT_TIMEOUT_MS = 6000;
 
 function isWeb(): boolean {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,6 +53,27 @@ export function getApiBaseUrl(): string {
   return DEFAULT_API_BASE_URL;
 }
 
+function isAbortError(error: unknown): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return Boolean((error as any)?.name === 'AbortError');
+}
+
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  // If AbortController isn't available for some runtime, just fall back to plain fetch.
+  if (typeof AbortController === 'undefined') {
+    return await fetch(url, init);
+  }
+
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -63,29 +85,35 @@ async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-function makeNetworkErrorMessage(baseUrl: string, path: string, error: unknown): string {
+function makeNetworkErrorMessage(baseUrl: string, path: string, error: unknown, timeoutMs?: number): string {
   const raw = error instanceof Error ? error.message : String(error);
   const url = `${baseUrl}${path}`;
+  const timedOut = isAbortError(error) && typeof timeoutMs === 'number';
   return [
     `Request failed: GET ${url}`,
-    raw,
+    timedOut ? `Timed out after ${timeoutMs}ms.` : raw,
     `Is the backend running? (expected at ${baseUrl})`,
   ]
     .filter(Boolean)
     .join(' ');
 }
 
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
   const baseUrl = getApiBaseUrl();
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const res = await fetch(`${baseUrl}${path}`, {
+    const res = await fetchWithTimeout(
+      `${baseUrl}${path}`,
+      {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
+      },
+      timeoutMs
+    );
     return await parseJsonOrThrow<T>(res);
   } catch (error) {
-    const msg = makeNetworkErrorMessage(baseUrl, path, error);
+    const msg = makeNetworkErrorMessage(baseUrl, path, error, timeoutMs);
     return { success: false, error: msg } as unknown as T;
   }
 }
@@ -93,40 +121,52 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 export async function apiPostWithHeaders<T>(
   path: string,
   body: unknown,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  opts?: { timeoutMs?: number }
 ): Promise<T> {
   const baseUrl = getApiBaseUrl();
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const res = await fetch(`${baseUrl}${path}`, {
+    const res = await fetchWithTimeout(
+      `${baseUrl}${path}`,
+      {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
-    });
+      },
+      timeoutMs
+    );
     return await parseJsonOrThrow<T>(res);
   } catch (error) {
-    const msg = makeNetworkErrorMessage(baseUrl, path, error);
+    const msg = makeNetworkErrorMessage(baseUrl, path, error, timeoutMs);
     return { success: false, error: msg } as unknown as T;
   }
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+export async function apiGet<T>(path: string, opts?: { timeoutMs?: number }): Promise<T> {
   const baseUrl = getApiBaseUrl();
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const res = await fetch(`${baseUrl}${path}`);
+    const res = await fetchWithTimeout(`${baseUrl}${path}`, undefined, timeoutMs);
     return await parseJsonOrThrow<T>(res);
   } catch (error) {
-    const msg = makeNetworkErrorMessage(baseUrl, path, error);
+    const msg = makeNetworkErrorMessage(baseUrl, path, error, timeoutMs);
     return { success: false, error: msg } as unknown as T;
   }
 }
 
-export async function apiGetWithHeaders<T>(path: string, headers: Record<string, string>): Promise<T> {
+export async function apiGetWithHeaders<T>(
+  path: string,
+  headers: Record<string, string>,
+  opts?: { timeoutMs?: number }
+): Promise<T> {
   const baseUrl = getApiBaseUrl();
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const res = await fetch(`${baseUrl}${path}`, { headers });
+    const res = await fetchWithTimeout(`${baseUrl}${path}`, { headers }, timeoutMs);
     return await parseJsonOrThrow<T>(res);
   } catch (error) {
-    const msg = makeNetworkErrorMessage(baseUrl, path, error);
+    const msg = makeNetworkErrorMessage(baseUrl, path, error, timeoutMs);
     return { success: false, error: msg } as unknown as T;
   }
 }

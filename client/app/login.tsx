@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import { getAuth0Config } from '../services/runtimeConfig';
 import { explainAuth0Failure, validateAuth0Config } from '../../shared/auth0Diagnostics';
+import { LoadingScreen } from '../components/LoadingScreen';
 
 // React Native global: true in dev, false in production builds.
 // eslint-disable-next-line no-var
@@ -17,10 +18,12 @@ export default function LoginScreen() {
   const router = useRouter();
   const { token, player, seedPlayers, loading, error, fetchSeedPlayers, login, loginWithAuth0AccessToken, clearError } =
     useAuthStore();
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [password, setPassword] = useState('borgz');
   const [auth0Error, setAuth0Error] = useState<string | null>(null);
+  const [seedLoaded, setSeedLoaded] = useState(false);
 
   const { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience } = getAuth0Config();
   // Default: only show seed auth in dev builds.
@@ -50,15 +53,16 @@ export default function LoginScreen() {
       redirectUri,
       responseType: AuthSession.ResponseType.Token,
       scopes: ['openid', 'profile', 'email'],
-      extraParams: auth0Audience ? { audience: auth0Audience } : undefined,
+      // Force showing the Universal Login prompt instead of silently reusing an existing Auth0 SSO session.
+      // - prompt=login: always ask for credentials
+      // - prompt=select_account: show account chooser when possible
+      extraParams: {
+        ...(auth0Audience ? { audience: auth0Audience } : null),
+        prompt: 'login',
+      },
     },
     discovery
   );
-
-  useEffect(() => {
-    if (!showSeedAuth) return;
-    void fetchSeedPlayers();
-  }, [fetchSeedPlayers, showSeedAuth]);
 
   useEffect(() => {
     if (token && player) {
@@ -80,15 +84,20 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!showSeedAuth) return;
+    if (!seedLoaded) return;
     if (!selectedId && seedPlayers.length) {
       setSelectedId(seedPlayers[0].id);
     }
-  }, [seedPlayers, selectedId, showSeedAuth]);
+  }, [seedPlayers, selectedId, showSeedAuth, seedLoaded]);
 
   const selected = useMemo(
     () => seedPlayers.find((p) => p.id === selectedId) || null,
     [seedPlayers, selectedId]
   );
+
+  if (!hasHydrated || loading) {
+    return <LoadingScreen backgroundColor="#fff" />;
+  }
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
@@ -140,6 +149,18 @@ export default function LoginScreen() {
         {showSeedAuth ? (
           <>
             <Text style={styles.sectionTitle}>Seed player</Text>
+            {!seedLoaded ? (
+              <Pressable
+                style={[styles.secondaryButton, loading ? styles.buttonDisabled : null]}
+                disabled={loading}
+                onPress={() => {
+                  setSeedLoaded(true);
+                  void fetchSeedPlayers();
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{loading ? 'Loading…' : 'Load seed players'}</Text>
+              </Pressable>
+            ) : null}
             <View style={styles.playerList}>
               {seedPlayers.map((p) => {
                 const active = p.id === selectedId;
@@ -182,7 +203,7 @@ export default function LoginScreen() {
 
             <View style={styles.meta}>
               <Text style={styles.metaText}>
-                {selected ? `Selected: ${selected.name} (${selected.id})` : 'Loading players…'}
+                {selected ? `Selected: ${selected.name} (${selected.id})` : seedLoaded ? 'No seed players loaded.' : 'Seed players not loaded.'}
               </Text>
               <Text style={styles.metaText}>Default seed password: borgz</Text>
             </View>
@@ -236,6 +257,15 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
+  secondaryButton: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#111',
+    marginBottom: 10,
+  },
+  secondaryButtonText: { color: '#111', fontWeight: '800' },
   meta: { marginTop: 12, gap: 4 },
   metaText: { fontSize: 12, color: '#666' },
 });
