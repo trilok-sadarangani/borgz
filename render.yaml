@@ -30,7 +30,6 @@ services:
     name: borgz-web
     runtime: static
     rootDir: client
-    plan: standard
     autoDeploy: true
     buildCommand: npm ci && npx expo export --platform web
     staticPublishPath: dist
