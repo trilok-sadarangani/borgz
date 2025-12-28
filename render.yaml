@@ -26,7 +26,7 @@ services:
       - key: AUTH0_ISSUER
         value: https://dev-hl2hhkyfntxf14em.us.auth0.com/
 
-  - type: static_site
+  - type: static
     name: borgz-web
     rootDir: client
     plan: starter
