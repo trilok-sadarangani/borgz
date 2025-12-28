@@ -3,6 +3,7 @@ import { gameService } from '../services/gameService';
 import { gameHistoryService } from '../services/gameHistoryService';
 import { dbPersistenceService } from '../services/dbPersistenceService';
 import { PlayerAction } from '../types';
+import { logger, toErrorMeta } from '../utils/logger';
 
 interface GameSocket extends Socket {
   gameCode?: string;
@@ -14,7 +15,8 @@ interface GameSocket extends Socket {
  */
 export function setupGameSocket(io: Server): void {
   io.on('connection', (socket: GameSocket) => {
-    console.log('Client connected:', socket.id);
+    const log = logger.child({ socketId: socket.id });
+    log.info('socket.connected');
 
     async function emitStatesForGame(gameCode: string) {
       const game = gameService.getGameByCode(gameCode);
@@ -36,10 +38,12 @@ export function setupGameSocket(io: Server): void {
     socket.on('join-game', (data: { gameCode: string; playerId: string }) => {
       try {
         const { gameCode, playerId } = data;
+        const slog = log.child({ gameCode, playerId });
         const game = gameService.getGameByCode(gameCode);
 
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.joinGame.notFound');
           return;
         }
 
@@ -55,7 +59,9 @@ export function setupGameSocket(io: Server): void {
         const inGame = gs.players.some((p) => p.id === playerId);
         if (inGame) {
           gameHistoryService.recordPlayerJoined(gameCode, playerId, Date.now());
-          void dbPersistenceService.ensurePlayer(playerId).catch(() => {});
+          void dbPersistenceService.ensurePlayer(playerId).catch((err) => {
+            slog.warn('db.ensurePlayer.failed', { err: toErrorMeta(err) });
+          });
         }
 
         // Notify other players
@@ -64,8 +70,9 @@ export function setupGameSocket(io: Server): void {
           state: game.getPublicState(),
         });
 
-        console.log(`Player ${playerId} joined game ${gameCode}`);
+        slog.info('socket.joinGame.success');
       } catch (error) {
+        log.warn('socket.joinGame.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Failed to join game',
         });
@@ -77,6 +84,7 @@ export function setupGameSocket(io: Server): void {
      */
     socket.on('leave-game', () => {
       if (socket.gameCode) {
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
         if (socket.playerId) {
           gameHistoryService.recordPlayerLeft(socket.gameCode, socket.playerId, Date.now());
         }
@@ -84,6 +92,7 @@ export function setupGameSocket(io: Server): void {
         socket.to(`game:${socket.gameCode}`).emit('player-left', {
           playerId: socket.playerId,
         });
+        slog.info('socket.leaveGame');
         socket.gameCode = undefined;
         socket.playerId = undefined;
       }
@@ -96,12 +105,15 @@ export function setupGameSocket(io: Server): void {
       try {
         if (!socket.gameCode || !socket.playerId) {
           socket.emit('error', { message: 'Not in a game' });
+          log.warn('socket.playerAction.notInGame');
           return;
         }
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
 
         const game = gameService.getGameByCode(socket.gameCode);
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.playerAction.gameNotFound');
           return;
         }
 
@@ -134,17 +146,18 @@ export function setupGameSocket(io: Server): void {
             stacksEndByPlayerId,
           });
           if (persisted) {
-            void dbPersistenceService.persistHandFinished(state.id, persisted).catch(() => {});
+            void dbPersistenceService.persistHandFinished(state.id, persisted).catch((err) => {
+              slog.warn('db.persistHandFinished.failed', { err: toErrorMeta(err) });
+            });
           }
         }
 
         // Broadcast updated state to each socket with the correct per-player sanitization
         void emitStatesForGame(socket.gameCode);
 
-        console.log(
-          `Player ${socket.playerId} performed action: ${data.action} in game ${socket.gameCode}`
-        );
+        slog.info('socket.playerAction', { action: data.action, amount: data.amount });
       } catch (error) {
+        log.warn('socket.playerAction.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Invalid action',
         });
@@ -158,17 +171,21 @@ export function setupGameSocket(io: Server): void {
       try {
         if (!socket.gameCode || !socket.playerId) {
           socket.emit('error', { message: 'Not in a game' });
+          log.warn('socket.getGameState.notInGame');
           return;
         }
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
 
         const game = gameService.getGameByCode(socket.gameCode);
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.getGameState.gameNotFound');
           return;
         }
 
         socket.emit('game-state', game.getStateForPlayer(socket.playerId));
       } catch (error) {
+        log.warn('socket.getGameState.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Failed to get game state',
         });
@@ -182,18 +199,23 @@ export function setupGameSocket(io: Server): void {
       try {
         if (!socket.gameCode || !socket.playerId) {
           socket.emit('error', { message: 'Not in a game' });
+          log.warn('socket.startGame.notInGame');
           return;
         }
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
 
         const game = gameService.getGameByCode(socket.gameCode);
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.startGame.gameNotFound');
           return;
         }
 
         game.startGame(socket.playerId);
         await emitStatesForGame(socket.gameCode);
+        slog.info('socket.startGame.success');
       } catch (error) {
+        log.warn('socket.startGame.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Failed to start game',
         });
@@ -207,18 +229,23 @@ export function setupGameSocket(io: Server): void {
       try {
         if (!socket.gameCode || !socket.playerId) {
           socket.emit('error', { message: 'Not in a game' });
+          log.warn('socket.nextHand.notInGame');
           return;
         }
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
 
         const game = gameService.getGameByCode(socket.gameCode);
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.nextHand.gameNotFound');
           return;
         }
 
         game.nextHand(socket.playerId);
         await emitStatesForGame(socket.gameCode);
+        slog.info('socket.nextHand.success');
       } catch (error) {
+        log.warn('socket.nextHand.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Failed to start next hand',
         });
@@ -232,17 +259,22 @@ export function setupGameSocket(io: Server): void {
       try {
         if (!socket.gameCode || !socket.playerId) {
           socket.emit('error', { message: 'Not in a game' });
+          log.warn('socket.rebuy.notInGame');
           return;
         }
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
         const game = gameService.getGameByCode(socket.gameCode);
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.rebuy.gameNotFound');
           return;
         }
         const amount = Number(data?.amount);
         game.rebuy(socket.playerId, amount);
         await emitStatesForGame(socket.gameCode);
+        slog.info('socket.rebuy.success', { amount });
       } catch (error) {
+        log.warn('socket.rebuy.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Failed to rebuy',
         });
@@ -257,18 +289,22 @@ export function setupGameSocket(io: Server): void {
       try {
         if (!socket.gameCode || !socket.playerId) {
           socket.emit('error', { message: 'Not in a game' });
+          log.warn('socket.endGame.notInGame');
           return;
         }
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
 
         const game = gameService.getGameByCode(socket.gameCode);
         if (!game) {
           socket.emit('error', { message: 'Game not found' });
+          slog.warn('socket.endGame.gameNotFound');
           return;
         }
 
         const state = game.getState();
         if (state.hostPlayerId && state.hostPlayerId !== socket.playerId) {
           socket.emit('error', { message: 'Only the host can end the game' });
+          slog.warn('socket.endGame.notHost', { hostPlayerId: state.hostPlayerId });
           return;
         }
 
@@ -290,7 +326,9 @@ export function setupGameSocket(io: Server): void {
         }
 
         gameService.removeGame(state.id);
+        slog.info('socket.endGame.success', { gameId: state.id });
       } catch (error) {
+        log.warn('socket.endGame.error', { err: toErrorMeta(error) });
         socket.emit('error', {
           message: error instanceof Error ? error.message : 'Failed to end game',
         });
@@ -302,12 +340,14 @@ export function setupGameSocket(io: Server): void {
      */
     socket.on('disconnect', () => {
       if (socket.gameCode && socket.playerId) {
+        const slog = log.child({ gameCode: socket.gameCode, playerId: socket.playerId });
         gameHistoryService.recordPlayerLeft(socket.gameCode, socket.playerId, Date.now());
         socket.to(`game:${socket.gameCode}`).emit('player-left', {
           playerId: socket.playerId,
         });
+        slog.info('socket.disconnected.inGame');
       }
-      console.log('Client disconnected:', socket.id);
+      log.info('socket.disconnected');
     });
   });
 }

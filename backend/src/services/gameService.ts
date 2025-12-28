@@ -5,6 +5,7 @@ import { generateGameCode, isValidGameCode } from '../utils/gameCode';
 import { validateGameSettings } from '../utils/validateSettings';
 import { gameHistoryService } from './gameHistoryService';
 import { dbPersistenceService } from './dbPersistenceService';
+import { logger, toErrorMeta } from '../utils/logger';
 
 /**
  * Manages active game instances
@@ -59,6 +60,12 @@ export class GameService {
     this.gameMeta.set(gameId, { clubId, createdAt: Date.now() });
 
     const state = game.getState();
+    logger.info('game.created', {
+      gameId,
+      code: state.code,
+      clubId,
+      variant: state.variant,
+    });
     gameHistoryService.registerGame({
       gameId,
       code: state.code,
@@ -79,7 +86,9 @@ export class GameService {
         settings: state.settings,
         createdAt: state.createdAt,
       })
-      .catch(() => {});
+      .catch((err) => {
+        logger.warn('db.persistGameCreated.failed', { gameId, code: state.code, err: toErrorMeta(err) });
+      });
 
     return { gameId, code };
   }
@@ -126,7 +135,10 @@ export class GameService {
       const endedAt = Date.now();
       gameHistoryService.markGameEnded(gameId, endedAt);
       gameHistoryService.closeAllOpenSessionsForGame(gameId, endedAt);
-      void dbPersistenceService.persistGameEnded(gameId, endedAt).catch(() => {});
+      logger.info('game.removed', { gameId, code });
+      void dbPersistenceService.persistGameEnded(gameId, endedAt).catch((err) => {
+        logger.warn('db.persistGameEnded.failed', { gameId, code, err: toErrorMeta(err) });
+      });
     }
   }
 

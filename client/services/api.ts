@@ -28,15 +28,19 @@ function tryGetExpoHostIp(): string | null {
 
 export function getApiBaseUrl(): string {
   // Expo supports EXPO_PUBLIC_* env vars; keep a safe default for dev.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const envUrl = (process as any)?.env?.EXPO_PUBLIC_API_URL as string | undefined;
+  // IMPORTANT: Keep this as a direct `process.env.EXPO_PUBLIC_*` reference so Expo can inline it at build time.
+  const envUrl =
+    typeof process !== 'undefined' ? (process.env.EXPO_PUBLIC_API_URL as string | undefined) : (undefined as string | undefined);
   if (envUrl) return envUrl;
 
   // Web: use the current hostname (same machine) unless overridden by env.
   if (isWeb()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const host = (globalThis as any)?.location?.hostname as string | undefined;
-    if (host) return `http://${host}:3001`;
+    // Match the current page scheme to avoid mixed-content errors (https page -> http API fetch).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const protocol = ((globalThis as any)?.location?.protocol as string | undefined) === 'https:' ? 'https' : 'http';
+    if (host) return `${protocol}://${host}:3001`;
     return DEFAULT_API_BASE_URL;
   }
 

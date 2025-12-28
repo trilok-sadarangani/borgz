@@ -6,6 +6,7 @@ const gameCode_1 = require("../utils/gameCode");
 const validateSettings_1 = require("../utils/validateSettings");
 const gameHistoryService_1 = require("./gameHistoryService");
 const dbPersistenceService_1 = require("./dbPersistenceService");
+const logger_1 = require("../utils/logger");
 /**
  * Manages active game instances
  */
@@ -51,6 +52,12 @@ class GameService {
         this.gameCodes.set(code, gameId);
         this.gameMeta.set(gameId, { clubId, createdAt: Date.now() });
         const state = game.getState();
+        logger_1.logger.info('game.created', {
+            gameId,
+            code: state.code,
+            clubId,
+            variant: state.variant,
+        });
         gameHistoryService_1.gameHistoryService.registerGame({
             gameId,
             code: state.code,
@@ -70,7 +77,9 @@ class GameService {
             settings: state.settings,
             createdAt: state.createdAt,
         })
-            .catch(() => { });
+            .catch((err) => {
+            logger_1.logger.warn('db.persistGameCreated.failed', { gameId, code: state.code, err: (0, logger_1.toErrorMeta)(err) });
+        });
         return { gameId, code };
     }
     /**
@@ -111,7 +120,10 @@ class GameService {
             const endedAt = Date.now();
             gameHistoryService_1.gameHistoryService.markGameEnded(gameId, endedAt);
             gameHistoryService_1.gameHistoryService.closeAllOpenSessionsForGame(gameId, endedAt);
-            void dbPersistenceService_1.dbPersistenceService.persistGameEnded(gameId, endedAt).catch(() => { });
+            logger_1.logger.info('game.removed', { gameId, code });
+            void dbPersistenceService_1.dbPersistenceService.persistGameEnded(gameId, endedAt).catch((err) => {
+                logger_1.logger.warn('db.persistGameEnded.failed', { gameId, code, err: (0, logger_1.toErrorMeta)(err) });
+            });
         }
     }
     /**

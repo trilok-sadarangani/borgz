@@ -14,6 +14,9 @@ const clubRoutes_1 = __importDefault(require("./routes/clubRoutes"));
 const historyRoutes_1 = __importDefault(require("./routes/historyRoutes"));
 const statsRoutes_1 = __importDefault(require("./routes/statsRoutes"));
 const gameSocket_1 = require("./sockets/gameSocket");
+const requestLogger_1 = require("./middleware/requestLogger");
+const errorHandler_1 = require("./middleware/errorHandler");
+const logger_1 = require("./utils/logger");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const httpServer = (0, http_1.createServer)(app);
@@ -27,6 +30,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+app.use((0, requestLogger_1.requestLogger)());
 // Health check endpoint
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', message: 'Poker server is running' });
@@ -37,9 +41,20 @@ app.use('/api/auth', authRoutes_1.default);
 app.use('/api/clubs', clubRoutes_1.default);
 app.use('/api/history', historyRoutes_1.default);
 app.use('/api/stats', statsRoutes_1.default);
+// Centralized error handler (for any uncaught sync/async errors in routes/middleware)
+app.use(errorHandler_1.errorHandler);
 // Socket.io connection handling
 (0, gameSocket_1.setupGameSocket)(io);
+process.on('unhandledRejection', (reason) => {
+    logger_1.logger.error('process.unhandledRejection', { reason: (0, logger_1.toErrorMeta)(reason) });
+});
+process.on('uncaughtException', (err) => {
+    logger_1.logger.error('process.uncaughtException', { err: (0, logger_1.toErrorMeta)(err) });
+});
 httpServer.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 Socket.io server ready`);
+    logger_1.logger.info('server.listening', {
+        port: PORT,
+        corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8081',
+    });
+    logger_1.logger.info('socket.ready');
 });

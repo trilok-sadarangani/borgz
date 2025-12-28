@@ -25,8 +25,13 @@ export default function LoginScreen() {
   const { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience } = getAuth0Config();
   // Default: only show seed auth in dev builds.
   // Allow override via env for staging/dev.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const showSeedAuth = Boolean(__DEV__ || String((process as any)?.env?.EXPO_PUBLIC_SHOW_SEED_AUTH || '').toLowerCase() === 'true');
+  // IMPORTANT: Keep this as a direct `process.env.EXPO_PUBLIC_*` reference so Expo can inline it at build time.
+  const showSeedAuth = Boolean(
+    __DEV__ ||
+      String(typeof process !== 'undefined' ? (process.env.EXPO_PUBLIC_SHOW_SEED_AUTH as string | undefined) : '')
+        .toLowerCase()
+        .trim() === 'true'
+  );
 
   const discovery = AuthSession.useAutoDiscovery(auth0Domain ? `https://${auth0Domain}` : '');
   const redirectUri = useMemo(() => {

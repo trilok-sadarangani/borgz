@@ -4,10 +4,18 @@ const express_1 = require("express");
 const authService_1 = require("../services/authService");
 const requireAuth_1 = require("../middleware/requireAuth");
 const router = (0, express_1.Router)();
+function seedAuthDisabled() {
+    const explicit = String(process.env.DISABLE_SEED_AUTH || '').toLowerCase() === 'true';
+    const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    return explicit || isProd;
+}
 /**
  * GET /api/auth/seed/players - List all available seed auth players
  */
 router.get('/seed/players', (_req, res) => {
+    if (seedAuthDisabled()) {
+        return res.status(404).json({ success: false, error: 'Not found' });
+    }
     try {
         const players = authService_1.authService.listSeedAuthPlayers();
         return res.json({ success: true, players, count: players.length });
@@ -24,6 +32,9 @@ router.get('/seed/players', (_req, res) => {
  * body: { playerId: string; password: string }
  */
 router.post('/login', (req, res) => {
+    if (seedAuthDisabled()) {
+        return res.status(404).json({ success: false, error: 'Not found' });
+    }
     try {
         const { playerId, password } = req.body;
         if (!playerId) {

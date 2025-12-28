@@ -44,7 +44,18 @@ async function requireAuth(req, res, next) {
         const issuer = process.env.AUTH0_ISSUER;
         const domain = process.env.AUTH0_DOMAIN;
         const resolvedIssuer = issuer || (domain ? `https://${domain}/` : undefined);
-        const useAuth0 = Boolean(audience && resolvedIssuer && looksLikeJwt(token));
+        const auth0Configured = Boolean(audience && resolvedIssuer);
+        const tokenIsJwt = looksLikeJwt(token);
+        const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+        // If Auth0 is configured in production, we require JWT bearer tokens.
+        if (auth0Configured && isProd && !tokenIsJwt) {
+            res.status(401).json({
+                success: false,
+                error: 'Auth0 access token (JWT) required',
+            });
+            return;
+        }
+        const useAuth0 = Boolean(auth0Configured && tokenIsJwt);
         if (useAuth0) {
             const { createLocalJWKSet, createRemoteJWKSet, jwtVerify } = await importJose();
             // Allow tests/offline usage by providing a JWKS JSON via env var.

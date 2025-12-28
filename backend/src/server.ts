@@ -9,6 +9,9 @@ import clubRoutes from './routes/clubRoutes';
 import historyRoutes from './routes/historyRoutes';
 import statsRoutes from './routes/statsRoutes';
 import { setupGameSocket } from './sockets/gameSocket';
+import { requestLogger } from './middleware/requestLogger';
+import { errorHandler } from './middleware/errorHandler';
+import { logger, toErrorMeta } from './utils/logger';
 
 dotenv.config();
 
@@ -26,6 +29,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(requestLogger());
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -39,11 +43,25 @@ app.use('/api/clubs', clubRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/stats', statsRoutes);
 
+// Centralized error handler (for any uncaught sync/async errors in routes/middleware)
+app.use(errorHandler);
+
 // Socket.io connection handling
 setupGameSocket(io);
 
+process.on('unhandledRejection', (reason) => {
+  logger.error('process.unhandledRejection', { reason: toErrorMeta(reason) });
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('process.uncaughtException', { err: toErrorMeta(err) });
+});
+
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Socket.io server ready`);
+  logger.info('server.listening', {
+    port: PORT,
+    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8081',
+  });
+  logger.info('socket.ready');
 });
 

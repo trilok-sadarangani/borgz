@@ -84,6 +84,18 @@ describe('requireAuth (Auth0 JWT mode)', () => {
         expect(req.player?.id).toBe('seed-alice');
         expect(req.token).toBe(session.token);
     });
+    it('rejects non-JWT bearer tokens in production when Auth0 is configured', async () => {
+        process.env.NODE_ENV = 'production';
+        process.env.AUTH0_DOMAIN = 'dev-hl2hhkyfntxf14em.us.auth0.com';
+        process.env.AUTH0_AUDIENCE = 'borgz.com';
+        const session = authService_1.authService.loginWithSeedPlayer('seed-alice', 'borgz');
+        const req = makeReqWithBearer(session.token); // not a JWT
+        const res = makeRes();
+        const next = () => undefined;
+        await (0, requireAuth_1.requireAuth)(req, res, next);
+        expect(res.statusCode).toBe(401);
+        expect(res.body?.success).toBe(false);
+    });
     it('accepts a valid JWT (issuer derived from AUTH0_DOMAIN) and attaches req.player', async () => {
         const { generateKeyPair, exportJWK, SignJWT } = await importJose();
         const { publicKey, privateKey } = await generateKeyPair('RS256');
