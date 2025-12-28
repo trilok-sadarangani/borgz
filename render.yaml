@@ -2,7 +2,9 @@ services:
   - type: web
     name: borgz-backend
     env: docker
-    rootDir: backend
+    rootDir: .
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
     plan: standard
     autoDeploy: true
     healthCheckPath: /health
