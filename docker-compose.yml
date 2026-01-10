@@ -25,6 +25,10 @@ services:
       CORS_ORIGIN: http://localhost:8081
       DATABASE_URL: postgresql://borgz:borgz@db:5432/borgz?schema=public
       ENABLE_DB_PERSISTENCE: "true"
+      # Local docker-compose can reuse an existing DB volume that already has tables.
+      # In that case, `prisma migrate deploy` fails with P3005 ("schema is not empty").
+      # Use db push for local dev to keep restarts smooth.
+      PRISMA_SYNC_MODE: dbpush
       AUTH0_DOMAIN: dev-hl2hhkyfntxf14em.us.auth0.com
       AUTH0_AUDIENCE: api.borgz.com
     ports:

@@ -56,9 +56,10 @@ function tryReadFromExpoExtra(): Auth0RuntimeConfig {
  * - `expo.extra.auth0*` from `client/app.json` (project "settings")
  */
 export function getAuth0Config(): Auth0RuntimeConfig {
-  // IMPORTANT: Keep these as direct `process.env.EXPO_PUBLIC_*` references so Expo can inline them at build time.
-  const envDomain =
-    typeof process !== 'undefined' ? (process.env.EXPO_PUBLIC_AUTH0_DOMAIN as string | undefined) : (undefined as string | undefined);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const env = (process as any)?.env as Record<string, unknown> | undefined;
+
+  const envDomain = typeof env?.EXPO_PUBLIC_AUTH0_DOMAIN === 'string' ? (env.EXPO_PUBLIC_AUTH0_DOMAIN as string) : undefined;
   const envClientId =
     typeof process !== 'undefined'
       ? (process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID as string | undefined)
