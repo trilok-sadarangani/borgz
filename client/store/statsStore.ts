@@ -128,7 +128,13 @@ export const useStatsStore = create<StatsState>((set) => ({
         Authorization: `Bearer ${token}`,
       });
       if (!res.success) {
-        set({ loading: false, error: res.error || 'Failed to load stats' });
+        const errorMsg = res.error || 'Failed to load stats';
+        // Check for token expiration errors
+        if (errorMsg.includes('exp') && errorMsg.includes('claim')) {
+          set({ loading: false, error: 'SESSION_EXPIRED' });
+          return;
+        }
+        set({ loading: false, error: errorMsg });
         return;
       }
       set({
@@ -141,6 +147,11 @@ export const useStatsStore = create<StatsState>((set) => ({
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load stats';
+      // Check for token expiration errors
+      if (msg.includes('exp') && msg.includes('claim')) {
+        set({ loading: false, error: 'SESSION_EXPIRED' });
+        return;
+      }
       set({ loading: false, error: msg });
     }
   },

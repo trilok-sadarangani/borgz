@@ -38,12 +38,23 @@ export const useClubStore = create<ClubState>((set, get) => ({
         Authorization: `Bearer ${token}`,
       });
       if (!res.success) {
-        set({ loading: false, error: res.error || 'Failed to load clubs' });
+        const errorMsg = res.error || 'Failed to load clubs';
+        // Check for token expiration
+        if (errorMsg.includes('exp') && errorMsg.includes('claim')) {
+          set({ loading: false, error: 'SESSION_EXPIRED' });
+          return;
+        }
+        set({ loading: false, error: errorMsg });
         return;
       }
       set({ loading: false, clubs: res.clubs, error: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load clubs';
+      // Check for token expiration
+      if (msg.includes('exp') && msg.includes('claim')) {
+        set({ loading: false, error: 'SESSION_EXPIRED' });
+        return;
+      }
       set({ loading: false, error: msg });
     }
   },

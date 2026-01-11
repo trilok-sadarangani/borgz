@@ -266,7 +266,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Play', route: '/(tabs)' },
   { label: 'Clubs', route: '/(tabs)/clubs' },
   { label: 'Games and Statistics', route: '/(tabs)/profile' },
-  { label: 'About', route: '/(tabs)' },
+  { label: 'Plus', route: '/(tabs)/plus' },
 ];
 
 type WebHomePageProps = {
@@ -282,6 +282,7 @@ export function WebHomePage({ children }: WebHomePageProps) {
   const getActiveNav = () => {
     if (pathname.includes('/clubs')) return 'Clubs';
     if (pathname.includes('/profile')) return 'Games and Statistics';
+    if (pathname.includes('/plus')) return 'Plus';
     if (pathname.includes('/game')) return 'Play';
     return 'Play';
   };

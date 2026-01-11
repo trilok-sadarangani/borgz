@@ -52,6 +52,12 @@ export default function TabsLayout() {
           title: 'Games & Stats',
         }}
       />
+      <Tabs.Screen
+        name="plus"
+        options={{
+          title: 'Plus',
+        }}
+      />
     </Tabs>
   );
 }

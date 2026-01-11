@@ -82,12 +82,23 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         Authorization: `Bearer ${token}`,
       });
       if (!res.success) {
-        set({ profileLoading: false, profileError: res.error || 'Failed to load history' });
+        const errorMsg = res.error || 'Failed to load history';
+        // Check for token expiration
+        if (errorMsg.includes('exp') && errorMsg.includes('claim')) {
+          set({ profileLoading: false, profileError: 'SESSION_EXPIRED' });
+          return;
+        }
+        set({ profileLoading: false, profileError: errorMsg });
         return;
       }
       set({ profileLoading: false, profileSessions: res.sessions, profileError: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load history';
+      // Check for token expiration
+      if (msg.includes('exp') && msg.includes('claim')) {
+        set({ profileLoading: false, profileError: 'SESSION_EXPIRED' });
+        return;
+      }
       set({ profileLoading: false, profileError: msg });
     }
   },

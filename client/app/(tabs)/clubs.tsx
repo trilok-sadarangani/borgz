@@ -5,31 +5,63 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../../store/authStore';
 import { useClubStore } from '../../store/clubStore';
 import { useClubGameStore } from '../../store/clubGameStore';
+import { useGameStore } from '../../store/gameStore';
+import { useHistoryStore } from '../../store/historyStore';
 import { LoadingScreen } from '../../components/LoadingScreen';
+import { GameSettingsForm } from '../../components/GameSettingsForm';
+import { GameSettings } from '../../../shared/types/game.types';
 
 const isWeb = Platform.OS === 'web';
+const SESSION_EXPIRED = 'SESSION_EXPIRED';
 
 export default function ClubsScreen() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const player = useAuthStore((s) => s.player);
+  const logout = useAuthStore((s) => s.logout);
   const clubs = useClubStore((s) => s.clubs);
   const loading = useClubStore((s) => s.loading);
   const error = useClubStore((s) => s.error);
   const fetchMyClubs = useClubStore((s) => s.fetchMyClubs);
+  const fetchClub = useClubStore((s) => s.fetchClub);
   const createClub = useClubStore((s) => s.createClub);
   const joinClub = useClubStore((s) => s.joinClub);
 
   const gamesByClubId = useClubGameStore((s) => s.gamesByClubId);
+  const clubGameLoading = useClubGameStore((s) => s.loading);
+  const clubGameError = useClubGameStore((s) => s.error);
   const fetchClubGames = useClubGameStore((s) => s.fetchClubGames);
+  const createClubGame = useClubGameStore((s) => s.createClubGame);
+
+  const connected = useGameStore((s) => s.connected);
+  const joinGame = useGameStore((s) => s.joinGame);
+  const gameError = useGameStore((s) => s.error);
+
+  const historyGamesByClubId = useHistoryStore((s) => s.clubGamesByClubId);
+  const historyLoadingByClubId = useHistoryStore((s) => s.clubLoadingByClubId);
+  const historyErrorByClubId = useHistoryStore((s) => s.clubErrorByClubId);
+  const fetchClubHistory = useHistoryStore((s) => s.fetchClubHistory);
 
   const [clubName, setClubName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [gameSettings, setGameSettings] = useState<Partial<GameSettings>>({});
+  const [expandedGameIds, setExpandedGameIds] = useState<Record<string, boolean>>({});
 
   const normalizedInviteCode = useMemo(() => inviteCode.trim().toUpperCase(), [inviteCode]);
   const trimmedClubName = useMemo(() => clubName.trim(), [clubName]);
   const livePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const clubsRef = useRef(clubs);
+
+  const selectedClub = useMemo(
+    () => (selectedClubId ? clubs.find((c) => c.id === selectedClubId) || null : null),
+    [selectedClubId, clubs]
+  );
+  const clubGames = selectedClubId ? gamesByClubId[selectedClubId] || [] : [];
+  const historyGames = selectedClubId ? historyGamesByClubId[selectedClubId] || [] : [];
+  const historyLoading = selectedClubId ? historyLoadingByClubId[selectedClubId] || false : false;
+  const historyError = selectedClubId ? historyErrorByClubId[selectedClubId] || null : null;
 
   useEffect(() => {
     clubsRef.current = clubs;
@@ -39,6 +71,22 @@ export default function ClubsScreen() {
     if (!token) return;
     void fetchMyClubs(token);
   }, [token, fetchMyClubs]);
+
+  // Handle session expiration - auto logout when token expires
+  useEffect(() => {
+    if (error === SESSION_EXPIRED) {
+      logout();
+      router.replace('/login');
+    }
+  }, [error, logout, router]);
+
+  // Fetch club details when selected
+  useEffect(() => {
+    if (!token || !selectedClubId) return;
+    void fetchClub(token, selectedClubId);
+    void fetchClubGames(token, selectedClubId);
+    void fetchClubHistory(token, selectedClubId);
+  }, [token, selectedClubId, fetchClub, fetchClubGames, fetchClubHistory]);
 
   const refreshLive = useCallback(async () => {
     if (!token) return;
@@ -53,13 +101,22 @@ export default function ClubsScreen() {
       void fetchMyClubs(token);
       void refreshLive();
       if (livePollRef.current) clearInterval(livePollRef.current);
-      livePollRef.current = setInterval(() => void refreshLive(), 6000);
+
+      // Poll for club games - faster if a club is selected
+      const pollInterval = selectedClubId ? 2500 : 6000;
+      livePollRef.current = setInterval(() => {
+        if (selectedClubId) {
+          void fetchClubGames(token, selectedClubId);
+        } else {
+          void refreshLive();
+        }
+      }, pollInterval);
 
       return () => {
         if (livePollRef.current) clearInterval(livePollRef.current);
         livePollRef.current = null;
       };
-    }, [token, fetchMyClubs, refreshLive])
+    }, [token, fetchMyClubs, refreshLive, selectedClubId, fetchClubGames])
   );
 
   useEffect(() => {
@@ -90,6 +147,182 @@ export default function ClubsScreen() {
     );
   }
 
+  // Render club detail view
+  if (selectedClubId && selectedClub) {
+    return (
+      <ScrollView style={s.scrollContainer} contentContainerStyle={s.container}>
+        <View style={s.header}>
+          <View style={s.headerRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.title}>{selectedClub.name}</Text>
+              <Text style={s.subtitle}>
+                {selectedClub.memberIds?.length ?? 0} members
+                {selectedClub.inviteCode ? `  •  code ${selectedClub.inviteCode}` : ''}
+              </Text>
+            </View>
+            <Pressable style={s.ghostButton} onPress={() => setSelectedClubId(null)}>
+              <Text style={s.ghostButtonText}>← Back</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {error ? <Text style={s.error}>{error}</Text> : null}
+        {clubGameError ? <Text style={s.error}>{clubGameError}</Text> : null}
+        {gameError ? <Text style={s.error}>{gameError}</Text> : null}
+
+        {/* Active Games Section */}
+        <View style={s.card}>
+          <View style={s.sectionHeaderRow}>
+            <Text style={s.sectionTitle}>Active games</Text>
+            <Pressable
+              style={s.ghostButton}
+              disabled={clubGameLoading}
+              onPress={() => void fetchClubGames(token, selectedClubId)}
+            >
+              <Text style={s.ghostButtonText}>{clubGameLoading ? 'Refreshing…' : 'Refresh'}</Text>
+            </Pressable>
+          </View>
+
+          {clubGames.length === 0 ? (
+            <Text style={s.emptyText}>No games yet. Create one below.</Text>
+          ) : (
+            clubGames.map((g, idx) => (
+              <View key={g.gameId} style={[s.gameRow, idx === 0 ? s.gameRowFirst : null]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.gameTitle}>Game {g.code}</Text>
+                  <Text style={s.gameMeta}>
+                    {g.phase} • {g.playerCount} players
+                  </Text>
+                </View>
+                <Pressable
+                  style={s.primaryButtonSmall}
+                  disabled={clubGameLoading || connected}
+                  onPress={async () => {
+                    await joinGame(g.code, player.id, player.name);
+                    if (!useGameStore.getState().error) router.replace('/(tabs)/game');
+                  }}
+                >
+                  <Text style={s.primaryButtonTextSmall}>Join</Text>
+                </Pressable>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Create New Game Section */}
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Create a new game</Text>
+          <Pressable style={s.secondaryButton} onPress={() => setShowSettings(!showSettings)}>
+            <Text style={s.secondaryButtonText}>
+              {showSettings ? 'Hide Settings' : 'Show Settings'}
+            </Text>
+          </Pressable>
+
+          {showSettings && (
+            <View style={s.settingsContainer}>
+              <GameSettingsForm
+                initialSettings={gameSettings}
+                onSubmit={(settings) => {
+                  setGameSettings(settings);
+                  setShowSettings(false);
+                }}
+                onCancel={() => setShowSettings(false)}
+              />
+            </View>
+          )}
+
+          <Pressable
+            style={[s.primaryButton, { marginTop: 12 }]}
+            disabled={clubGameLoading}
+            onPress={async () => {
+              const created = await createClubGame(token, selectedClubId, gameSettings);
+              if (!created) return;
+              await joinGame(created.code, player.id, player.name);
+              if (!useGameStore.getState().error) router.replace('/(tabs)/game');
+            }}
+          >
+            <Text style={s.primaryButtonText}>
+              {clubGameLoading ? 'Creating…' : 'Create & Join'}
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Game History Section */}
+        <View style={s.card}>
+          <View style={s.sectionHeaderRow}>
+            <Text style={s.sectionTitle}>Game history</Text>
+            <Pressable
+              style={s.ghostButton}
+              disabled={historyLoading}
+              onPress={() => (token ? void fetchClubHistory(token, selectedClubId) : undefined)}
+            >
+              <Text style={s.ghostButtonText}>{historyLoading ? 'Refreshing…' : 'Refresh'}</Text>
+            </Pressable>
+          </View>
+
+          {historyError ? <Text style={s.error}>{historyError}</Text> : null}
+
+          {historyGames.length === 0 ? (
+            <Text style={s.emptyText}>No history yet. Finish a hand in a club game.</Text>
+          ) : (
+            historyGames.map((g, idx) => {
+              const expanded = !!expandedGameIds[g.gameId];
+              const created = new Date(g.createdAt).toLocaleString();
+              const ended = g.endedAt ? new Date(g.endedAt).toLocaleString() : 'active';
+              return (
+                <View key={g.gameId} style={[s.historyRow, idx === 0 ? s.historyRowFirst : null]}>
+                  <Pressable
+                    style={{ flex: 1 }}
+                    onPress={() => router.push(`/history/game/${g.gameId}?clubId=${selectedClubId}`)}
+                  >
+                    <Text style={s.gameTitle}>
+                      {g.code} • {g.handsCount} hands
+                    </Text>
+                    <Text style={s.gameMeta}>
+                      {created} → {ended}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={s.ghostButton}
+                    onPress={() =>
+                      setExpandedGameIds((prev) => ({ ...prev, [g.gameId]: !prev[g.gameId] }))
+                    }
+                  >
+                    <Text style={s.ghostButtonText}>{expanded ? 'Hide' : 'Show'}</Text>
+                  </Pressable>
+
+                  {expanded && (
+                    <View style={s.expandedHistory}>
+                      {g.hands.length === 0 ? (
+                        <Text style={s.emptyText}>No finished hands yet.</Text>
+                      ) : (
+                        g.hands.map((h) => {
+                          const winners = h.winners.map((w) => `${w.playerId}:${w.amount}`).join(', ');
+                          return (
+                            <View key={`${g.gameId}:${h.handNumber}`} style={s.handRow}>
+                              <Text style={s.handTitle}>
+                                Hand #{h.handNumber} • {h.reason} • pot {h.pot}
+                              </Text>
+                              <Text style={s.handMeta}>
+                                winners: {winners || '—'} • actions: {h.actions.length}
+                              </Text>
+                            </View>
+                          );
+                        })
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Render clubs list view
   return (
     <ScrollView style={s.scrollContainer} contentContainerStyle={s.container}>
       <View style={s.header}>
@@ -168,7 +401,7 @@ export default function ClubsScreen() {
               <Pressable
                 key={c.id}
                 style={[s.clubRow, live ? s.clubRowLive : null, idx === 0 ? s.clubRowFirst : null]}
-                onPress={() => router.push(`/club/${c.id}`)}
+                onPress={() => (isWeb ? setSelectedClubId(c.id) : router.push(`/club/${c.id}`))}
                 disabled={loading}
               >
                 <View style={{ flex: 1 }}>
@@ -220,8 +453,14 @@ const webStyles = StyleSheet.create({
   },
   header: {
     width: '100%',
-    maxWidth: 640,
+    maxWidth: 800,
     marginBottom: 32,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
   },
   title: {
     fontSize: 36,
@@ -243,15 +482,19 @@ const webStyles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
     overflow: 'hidden',
+    width: '100%',
+    maxWidth: 800,
   },
   twoCol: {
     width: '100%',
-    maxWidth: 640,
+    maxWidth: 800,
     flexDirection: 'row',
     gap: 24,
   },
   card: {
     flex: 1,
+    width: '100%',
+    maxWidth: 800,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -300,6 +543,32 @@ const webStyles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 15,
+  },
+  primaryButtonSmall: {
+    backgroundColor: '#22c55e',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonTextSmall: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  secondaryButton: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  secondaryButtonText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '700',
+    fontSize: 14,
   },
   ghostButton: {
     paddingVertical: 8,
@@ -386,6 +655,64 @@ const webStyles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.3)',
     marginLeft: 8,
   },
+  // Club detail styles
+  gameRow: {
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  gameRowFirst: {
+    borderTopWidth: 0,
+  },
+  gameTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  gameMeta: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  historyRow: {
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  historyRowFirst: {
+    borderTopWidth: 0,
+  },
+  expandedHistory: {
+    width: '100%',
+    paddingTop: 12,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: 8,
+  },
+  handRow: {
+    paddingVertical: 8,
+  },
+  handTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 2,
+  },
+  handMeta: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  settingsContainer: {
+    marginTop: 20,
+  },
 });
 
 // Native styles - original light theme
@@ -403,6 +730,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 560,
     marginBottom: 10,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   title: {
     fontSize: 24,
@@ -467,6 +800,29 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#fff',
+    fontWeight: '700',
+  },
+  primaryButtonSmall: {
+    backgroundColor: '#111',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonTextSmall: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#111',
+  },
+  secondaryButtonText: {
+    color: '#111',
     fontWeight: '700',
   },
   ghostButton: {
@@ -551,5 +907,64 @@ const styles = StyleSheet.create({
     color: '#bbb',
     marginLeft: 6,
     marginRight: 2,
+  },
+  // Club detail styles for native
+  gameRow: {
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  gameRowFirst: {
+    borderTopWidth: 0,
+  },
+  gameTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  gameMeta: {
+    fontSize: 12,
+    color: '#777',
+  },
+  historyRow: {
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  historyRowFirst: {
+    borderTopWidth: 0,
+  },
+  expandedHistory: {
+    width: '100%',
+    paddingTop: 10,
+    paddingLeft: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: '#eee',
+    marginTop: 6,
+  },
+  handRow: {
+    paddingVertical: 6,
+  },
+  handTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  handMeta: {
+    fontSize: 12,
+    color: '#777',
+  },
+  settingsContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
   },
 });

@@ -9,9 +9,12 @@ import { PokerVariant } from '../../../shared/types/game.types';
 
 const isWeb = Platform.OS === 'web';
 
+// Session expired indicator from stats store
+const SESSION_EXPIRED = 'SESSION_EXPIRED';
+
 export default function ProfileScreen() {
   const router = useRouter();
-  const { token, player } = useAuthStore();
+  const { token, player, logout } = useAuthStore();
   const history = useHistoryStore();
   const fetchMyClubs = useClubStore((s) => s.fetchMyClubs);
   const clubs = useClubStore((s) => s.clubs);
@@ -23,6 +26,14 @@ export default function ProfileScreen() {
   const gamesInRange = useStatsStore((s) => s.gamesInRange);
   const vsOpponents = useStatsStore((s) => s.vsOpponents);
   const preflop = useStatsStore((s) => s.preflop);
+
+  // Handle session expiration - auto logout when token expires
+  useEffect(() => {
+    if (statsError === SESSION_EXPIRED || history.profileError === SESSION_EXPIRED) {
+      logout();
+      router.replace('/login');
+    }
+  }, [statsError, history.profileError, logout, router]);
 
   const [expandedSessionIds, setExpandedSessionIds] = useState<Record<string, boolean>>({});
 

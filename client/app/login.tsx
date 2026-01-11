@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, Platform, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import { getAuth0Config } from '../services/runtimeConfig';
-import { explainAuth0Failure, validateAuth0Config } from '../../shared/auth0Diagnostics';
+import { explainAuth0Failure } from '../../shared/auth0Diagnostics';
 import { LoadingScreen } from '../components/LoadingScreen';
-
-// React Native global: true in dev, false in production builds.
-// eslint-disable-next-line no-var
-declare const __DEV__: boolean;
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -212,25 +208,13 @@ const iconStyles = StyleSheet.create({
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { token, player, seedPlayers, loading, error, fetchSeedPlayers, login, loginWithAuth0AccessToken, clearError } =
-    useAuthStore();
+  const { token, player, loading, error, loginWithAuth0AccessToken, clearError } = useAuthStore();
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
 
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [showDevAuth, setShowDevAuth] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [password, setPassword] = useState('borgz');
   const [auth0Error, setAuth0Error] = useState<string | null>(null);
-  const [seedLoaded, setSeedLoaded] = useState(false);
 
   const { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience } = getAuth0Config();
-  
-  const showSeedAuth = Boolean(
-    __DEV__ ||
-      String(typeof process !== 'undefined' ? (process.env.EXPO_PUBLIC_SHOW_SEED_AUTH as string | undefined) : '')
-        .toLowerCase()
-        .trim() === 'true'
-  );
 
   const discovery = AuthSession.useAutoDiscovery(auth0Domain ? `https://${auth0Domain}` : '');
   const redirectUri = useMemo(() => {
@@ -320,19 +304,6 @@ export default function LoginScreen() {
       }
     }
   }, [googleResponse, appleResponse, response, auth0Domain, auth0ClientId, auth0Audience, redirectUri]);
-
-  useEffect(() => {
-    if (!showSeedAuth) return;
-    if (!seedLoaded) return;
-    if (!selectedId && seedPlayers.length) {
-      setSelectedId(seedPlayers[0].id);
-    }
-  }, [seedPlayers, selectedId, showSeedAuth, seedLoaded]);
-
-  const selected = useMemo(
-    () => seedPlayers.find((p) => p.id === selectedId) || null,
-    [seedPlayers, selectedId]
-  );
 
   if (!hasHydrated || loading) {
     return Platform.OS === 'web' 
@@ -458,76 +429,6 @@ export default function LoginScreen() {
           {' '}and{' '}
           <Text style={styles.termsLink}>Privacy Policy</Text>
         </Text>
-
-        {/* Dev Auth Toggle (only in dev) */}
-        {showSeedAuth && (
-          <Pressable 
-            style={styles.devToggle}
-            onPress={() => setShowDevAuth(!showDevAuth)}
-          >
-            <Text style={styles.devToggleText}>
-              {showDevAuth ? '▼ Hide dev options' : '▶ Dev options'}
-            </Text>
-          </Pressable>
-        )}
-
-        {/* Dev Auth Section */}
-        {showSeedAuth && showDevAuth && (
-          <View style={styles.devSection}>
-            <Text style={styles.devTitle}>Development Login</Text>
-            
-            {!seedLoaded ? (
-              <Pressable
-                style={styles.devButton}
-                onPress={() => {
-                  setSeedLoaded(true);
-                  void fetchSeedPlayers();
-                }}
-              >
-                <Text style={styles.devButtonText}>Load seed players</Text>
-              </Pressable>
-            ) : (
-              <>
-                <View style={styles.playerList}>
-                  {seedPlayers.map((p) => {
-                    const active = p.id === selectedId;
-                    return (
-                      <Pressable
-                        key={p.id}
-                        onPress={() => setSelectedId(p.id)}
-                        style={[styles.playerChip, active && styles.playerChipActive]}
-                      >
-                        <Text style={[styles.playerChipText, active && styles.playerChipTextActive]}>
-                          {p.avatar ? `${p.avatar} ` : ''}{p.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  style={styles.devInput}
-                  placeholderTextColor="#666"
-                />
-
-                <Pressable
-                  style={[styles.devButton, (!selectedId || !password) && styles.devButtonDisabled]}
-                  disabled={!selectedId || !password}
-                  onPress={() => {
-                    if (selectedId) void login(selectedId, password);
-                  }}
-                >
-                  <Text style={styles.devButtonText}>Login as {selected?.name || 'player'}</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        )}
       </View>
 
       {/* Footer */}
@@ -725,78 +626,6 @@ const styles = StyleSheet.create({
   termsLink: {
     color: '#666',
     textDecorationLine: 'underline',
-  },
-  devToggle: {
-    marginTop: 24,
-    paddingVertical: 8,
-  },
-  devToggleText: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
-  },
-  devSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  devTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 12,
-  },
-  playerList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  playerChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-  },
-  playerChipActive: {
-    backgroundColor: '#22c55e',
-    borderColor: '#22c55e',
-  },
-  playerChipText: {
-    fontSize: 13,
-    color: '#333',
-  },
-  playerChipTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  devInput: {
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    marginBottom: 12,
-    backgroundColor: '#fafafa',
-    color: '#333',
-  },
-  devButton: {
-    backgroundColor: '#333',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  devButtonDisabled: {
-    opacity: 0.5,
-  },
-  devButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
   },
   footer: {
     position: 'absolute',

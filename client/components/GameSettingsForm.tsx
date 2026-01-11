@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, Switch } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, Switch, Platform } from 'react-native';
 import { GameSettings } from '../../shared/types/game.types';
+
+const isWeb = Platform.OS === 'web';
 
 interface GameSettingsFormProps {
   initialSettings?: Partial<GameSettings>;
@@ -70,8 +72,9 @@ export function GameSettingsForm({ initialSettings, onSubmit, onCancel }: GameSe
     initialSettings?.gameLengthMinutes?.toString() || '60'
   );
 
+  const s = isWeb ? webStyles : styles;
+
   const handleSubmit = () => {
-    // Basic client-side validation
     const smallBlindNum = Number(smallBlind);
     const bigBlindNum = Number(bigBlind);
     const startingStackNum = Number(startingStack);
@@ -175,119 +178,334 @@ export function GameSettingsForm({ initialSettings, onSubmit, onCancel }: GameSe
     setGameLengthMinutes('60');
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Game Settings</Text>
+  if (isWeb) {
+    return (
+      <View style={webStyles.container}>
+        {/* Row 1: Blinds and Stack */}
+        <View style={webStyles.row}>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Small Blind</Text>
+            <TextInput
+              value={smallBlind}
+              onChangeText={setSmallBlind}
+              placeholder="10"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Big Blind</Text>
+            <TextInput
+              value={bigBlind}
+              onChangeText={setBigBlind}
+              placeholder="20"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Starting Stack</Text>
+            <TextInput
+              value={startingStack}
+              onChangeText={setStartingStack}
+              placeholder="1000"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Max Players</Text>
+            <TextInput
+              value={maxPlayers}
+              onChangeText={setMaxPlayers}
+              placeholder="9"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+        </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Small Blind</Text>
+        {/* Row 2: Stack Range and Timer */}
+        <View style={webStyles.row}>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Stack Min</Text>
+            <TextInput
+              value={stackMin}
+              onChangeText={setStackMin}
+              placeholder="500"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Stack Max</Text>
+            <TextInput
+              value={stackMax}
+              onChangeText={setStackMax}
+              placeholder="5000"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+          <View style={webStyles.field}>
+            <Text style={webStyles.label}>Turn Timer (sec)</Text>
+            <TextInput
+              value={turnTimerSeconds}
+              onChangeText={setTurnTimerSeconds}
+              placeholder="20"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="numeric"
+              style={webStyles.input}
+            />
+          </View>
+          <View style={webStyles.fieldEmpty} />
+        </View>
+
+        {/* Row 3: Toggles */}
+        <View style={webStyles.togglesRow}>
+          {/* Time Bank */}
+          <View style={webStyles.toggleGroup}>
+            <View style={webStyles.toggleHeader}>
+              <Text style={webStyles.toggleLabel}>Time Bank</Text>
+              <Switch
+                value={hasTimeBank}
+                onValueChange={setHasTimeBank}
+                trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(34,197,94,0.5)' }}
+                thumbColor={hasTimeBank ? '#22c55e' : 'rgba(255,255,255,0.5)'}
+              />
+            </View>
+            {hasTimeBank && (
+              <View style={webStyles.toggleInputs}>
+                <View style={webStyles.miniField}>
+                  <Text style={webStyles.miniLabel}>Banks</Text>
+                  <TextInput
+                    value={timeBankCount}
+                    onChangeText={setTimeBankCount}
+                    placeholder="5"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="numeric"
+                    style={webStyles.miniInput}
+                  />
+                </View>
+                <View style={webStyles.miniField}>
+                  <Text style={webStyles.miniLabel}>Sec/bank</Text>
+                  <TextInput
+                    value={timeBankSeconds}
+                    onChangeText={setTimeBankSeconds}
+                    placeholder="20"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="numeric"
+                    style={webStyles.miniInput}
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Ante */}
+          <View style={webStyles.toggleGroup}>
+            <View style={webStyles.toggleHeader}>
+              <Text style={webStyles.toggleLabel}>Ante</Text>
+              <Switch
+                value={hasAnte}
+                onValueChange={setHasAnte}
+                trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(34,197,94,0.5)' }}
+                thumbColor={hasAnte ? '#22c55e' : 'rgba(255,255,255,0.5)'}
+              />
+            </View>
+            {hasAnte && (
+              <View style={webStyles.toggleInputs}>
+                <View style={webStyles.miniField}>
+                  <Text style={webStyles.miniLabel}>BB Ante</Text>
+                  <Switch
+                    value={bbAnte}
+                    onValueChange={setBbAnte}
+                    trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(34,197,94,0.5)' }}
+                    thumbColor={bbAnte ? '#22c55e' : 'rgba(255,255,255,0.5)'}
+                  />
+                </View>
+                <View style={webStyles.miniField}>
+                  <Text style={webStyles.miniLabel}>Amount</Text>
+                  <TextInput
+                    value={anteAmount}
+                    onChangeText={setAnteAmount}
+                    placeholder="0"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="numeric"
+                    style={webStyles.miniInput}
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Game Length */}
+          <View style={webStyles.toggleGroup}>
+            <View style={webStyles.toggleHeader}>
+              <Text style={webStyles.toggleLabel}>Game Length</Text>
+              <Switch
+                value={hasGameLength}
+                onValueChange={setHasGameLength}
+                trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(34,197,94,0.5)' }}
+                thumbColor={hasGameLength ? '#22c55e' : 'rgba(255,255,255,0.5)'}
+              />
+            </View>
+            {hasGameLength && (
+              <View style={webStyles.toggleInputs}>
+                <View style={webStyles.miniField}>
+                  <Text style={webStyles.miniLabel}>Minutes</Text>
+                  <TextInput
+                    value={gameLengthMinutes}
+                    onChangeText={setGameLengthMinutes}
+                    placeholder="60"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="numeric"
+                    style={webStyles.miniInput}
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Buttons */}
+        <View style={webStyles.buttonRow}>
+          <Pressable style={webStyles.resetButton} onPress={handleReset}>
+            <Text style={webStyles.resetButtonText}>Reset</Text>
+          </Pressable>
+          {onCancel && (
+            <Pressable style={webStyles.cancelButton} onPress={onCancel}>
+              <Text style={webStyles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          )}
+          <Pressable style={webStyles.applyButton} onPress={handleSubmit}>
+            <Text style={webStyles.applyButtonText}>Apply Settings</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  // Native (mobile) layout
+  return (
+    <View style={s.container}>
+      <Text style={s.title}>Game Settings</Text>
+
+      <View style={s.field}>
+        <Text style={s.label}>Small Blind</Text>
         <TextInput
           value={smallBlind}
           onChangeText={setSmallBlind}
           placeholder="10"
           keyboardType="numeric"
-          style={styles.input}
+          style={s.input}
         />
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Big Blind</Text>
+      <View style={s.field}>
+        <Text style={s.label}>Big Blind</Text>
         <TextInput
           value={bigBlind}
           onChangeText={setBigBlind}
           placeholder="20"
           keyboardType="numeric"
-          style={styles.input}
+          style={s.input}
         />
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Starting Stack</Text>
+      <View style={s.field}>
+        <Text style={s.label}>Starting Stack</Text>
         <TextInput
           value={startingStack}
           onChangeText={setStartingStack}
           placeholder="1000"
           keyboardType="numeric"
-          style={styles.input}
+          style={s.input}
         />
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Stack Range (min / max)</Text>
-        <View style={styles.row}>
+      <View style={s.field}>
+        <Text style={s.label}>Stack Range (min / max)</Text>
+        <View style={s.rowInputs}>
           <TextInput
             value={stackMin}
             onChangeText={setStackMin}
             placeholder="500"
             keyboardType="numeric"
-            style={[styles.input, { flex: 1 }]}
+            style={[s.input, { flex: 1 }]}
           />
           <TextInput
             value={stackMax}
             onChangeText={setStackMax}
             placeholder="5000"
             keyboardType="numeric"
-            style={[styles.input, { flex: 1 }]}
+            style={[s.input, { flex: 1 }]}
           />
         </View>
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Max Players</Text>
+      <View style={s.field}>
+        <Text style={s.label}>Max Players</Text>
         <TextInput
           value={maxPlayers}
           onChangeText={setMaxPlayers}
           placeholder="9"
           keyboardType="numeric"
-          style={styles.input}
+          style={s.input}
         />
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Turn Timer (seconds)</Text>
+      <View style={s.field}>
+        <Text style={s.label}>Turn Timer (seconds)</Text>
         <TextInput
           value={turnTimerSeconds}
           onChangeText={setTurnTimerSeconds}
           placeholder="20"
           keyboardType="numeric"
-          style={styles.input}
+          style={s.input}
         />
       </View>
 
-      <View style={styles.field}>
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Enable Time Bank</Text>
+      <View style={s.field}>
+        <View style={s.switchRow}>
+          <Text style={s.label}>Enable Time Bank</Text>
           <Switch value={hasTimeBank} onValueChange={setHasTimeBank} />
         </View>
         {hasTimeBank && (
-          <View style={styles.row}>
+          <View style={s.rowInputs}>
             <TextInput
               value={timeBankCount}
               onChangeText={setTimeBankCount}
               placeholder="5"
               keyboardType="numeric"
-              style={[styles.input, { flex: 1 }]}
+              style={[s.input, { flex: 1 }]}
             />
             <TextInput
               value={timeBankSeconds}
               onChangeText={setTimeBankSeconds}
               placeholder="20"
               keyboardType="numeric"
-              style={[styles.input, { flex: 1 }]}
+              style={[s.input, { flex: 1 }]}
             />
           </View>
         )}
       </View>
 
-      <View style={styles.field}>
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Enable Ante</Text>
+      <View style={s.field}>
+        <View style={s.switchRow}>
+          <Text style={s.label}>Enable Ante</Text>
           <Switch value={hasAnte} onValueChange={setHasAnte} />
         </View>
         {hasAnte && (
           <>
-            <View style={styles.switchRow}>
-              <Text style={styles.label}>BB Ante</Text>
+            <View style={s.switchRow}>
+              <Text style={s.label}>BB Ante</Text>
               <Switch value={bbAnte} onValueChange={setBbAnte} />
             </View>
             <TextInput
@@ -295,15 +513,15 @@ export function GameSettingsForm({ initialSettings, onSubmit, onCancel }: GameSe
               onChangeText={setAnteAmount}
               placeholder="0"
               keyboardType="numeric"
-              style={styles.input}
+              style={s.input}
             />
           </>
         )}
       </View>
 
-      <View style={styles.field}>
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Game Length (minutes)</Text>
+      <View style={s.field}>
+        <View style={s.switchRow}>
+          <Text style={s.label}>Game Length (minutes)</Text>
           <Switch value={hasGameLength} onValueChange={setHasGameLength} />
         </View>
         {hasGameLength && (
@@ -312,28 +530,156 @@ export function GameSettingsForm({ initialSettings, onSubmit, onCancel }: GameSe
             onChangeText={setGameLengthMinutes}
             placeholder="60"
             keyboardType="numeric"
-            style={styles.input}
+            style={s.input}
           />
         )}
       </View>
 
-      <View style={styles.buttonRow}>
+      <View style={s.buttonRow}>
         {onCancel && (
-          <Pressable style={styles.secondaryButton} onPress={onCancel}>
-            <Text style={styles.secondaryButtonText}>Cancel</Text>
+          <Pressable style={s.secondaryButton} onPress={onCancel}>
+            <Text style={s.secondaryButtonText}>Cancel</Text>
           </Pressable>
         )}
-        <Pressable style={styles.resetButton} onPress={handleReset}>
-          <Text style={styles.resetButtonText}>Reset</Text>
+        <Pressable style={s.resetButton} onPress={handleReset}>
+          <Text style={s.resetButtonText}>Reset</Text>
         </Pressable>
-        <Pressable style={styles.primaryButton} onPress={handleSubmit}>
-          <Text style={styles.primaryButtonText}>Apply</Text>
+        <Pressable style={s.primaryButton} onPress={handleSubmit}>
+          <Text style={s.primaryButtonText}>Apply</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
+// Web styles - horizontal desktop layout
+const webStyles = StyleSheet.create({
+  container: {
+    width: '100%',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  field: {
+    flex: 1,
+  },
+  fieldEmpty: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    color: '#fff',
+  },
+  togglesRow: {
+    flexDirection: 'row',
+    gap: 24,
+    marginBottom: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  toggleGroup: {
+    flex: 1,
+    minWidth: 150,
+  },
+  toggleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  toggleLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  toggleInputs: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  miniField: {
+    flex: 1,
+  },
+  miniLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 4,
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  miniInput: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    color: '#fff',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  resetButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  resetButtonText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  cancelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  cancelButtonText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  applyButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    backgroundColor: '#22c55e',
+  },
+  applyButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+});
+
+// Native styles - vertical mobile layout
 const styles = StyleSheet.create({
   container: {
     width: '100%',
@@ -361,10 +707,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     width: '100%',
   },
-  row: {
+  rowInputs: {
     flexDirection: 'row',
     gap: 10,
-    alignItems: 'center',
   },
   switchRow: {
     flexDirection: 'row',
@@ -413,4 +758,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
