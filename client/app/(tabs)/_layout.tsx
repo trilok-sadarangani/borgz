@@ -1,6 +1,8 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Platform } from 'react-native';
+import { Redirect, Tabs, Slot } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { LoadingScreen } from '../../components/LoadingScreen';
+import { WebHomePage } from '../../components/WebHomePage';
 
 export default function TabsLayout() {
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
@@ -9,6 +11,15 @@ export default function TabsLayout() {
   if (!hasHydrated) return <LoadingScreen backgroundColor="#fff" label="Restoring session…" />;
   if (!token) {
     return <Redirect href="/login" />;
+  }
+
+  // On web, wrap content in WebHomePage layout
+  if (Platform.OS === 'web') {
+    return (
+      <WebHomePage>
+        <Slot />
+      </WebHomePage>
+    );
   }
 
   return (
@@ -38,7 +49,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Games & Stats',
         }}
       />
     </Tabs>

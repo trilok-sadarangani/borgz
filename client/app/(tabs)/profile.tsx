@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { useClubStore } from '../../store/clubStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { DepthBucket, PreflopPositionStats, useStatsStore } from '../../store/statsStore';
 import { PokerVariant } from '../../../shared/types/game.types';
+
+const isWeb = Platform.OS === 'web';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -25,10 +27,10 @@ export default function ProfileScreen() {
   const [expandedSessionIds, setExpandedSessionIds] = useState<Record<string, boolean>>({});
 
   const [rangePreset, setRangePreset] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
-  const [clubIdx, setClubIdx] = useState<number>(-1); // -1 = all
+  const [clubIdx, setClubIdx] = useState<number>(-1);
   const [variant, setVariant] = useState<PokerVariant | 'all'>('all');
   const [depthBucket, setDepthBucket] = useState<DepthBucket | 'all'>('all');
-  const [gameIdx, setGameIdx] = useState<number>(-1); // -1 = all
+  const [gameIdx, setGameIdx] = useState<number>(-1);
 
   useEffect(() => {
     if (!token) return;
@@ -36,7 +38,6 @@ export default function ProfileScreen() {
     void fetchMyClubs(token);
   }, [token, history.fetchMyHistory, fetchMyClubs]);
 
-  // Keep indices valid when lists change.
   useEffect(() => {
     if (clubIdx >= clubs.length) setClubIdx(-1);
   }, [clubIdx, clubs.length]);
@@ -67,18 +68,19 @@ export default function ProfileScreen() {
       variant: variant === 'all' ? undefined : variant,
       depthBucket: depthBucket === 'all' ? undefined : depthBucket,
     });
-    // Important: do NOT depend on `gamesInRange` here, otherwise fetching stats updates gamesInRange which can
-    // retrigger this effect and keep the UI stuck in a loading/disabled loop.
   }, [token, player, rangePreset, clubIdx, clubs, gameIdx, variant, depthBucket, fetchMyStats]);
 
   const sessions = history.profileSessions;
 
   const title = useMemo(() => {
-    if (!player) return 'Player Profile';
-    return `Profile: ${player.name}`;
+    if (!player) return 'Games and Statistics';
+    return `Games and Statistics`;
   }, [player]);
 
   const preflopRows = useMemo(() => preflop?.byPosition || [], [preflop]);
+
+  // Use web or native styles
+  const s = isWeb ? webStyles : styles;
 
   function pct(n: number, d: number): string {
     if (!d) return '—';
@@ -87,51 +89,53 @@ export default function ProfileScreen() {
 
   function renderPreflopRow(r: PreflopPositionStats) {
     return (
-      <View key={r.position} style={styles.preflopRow}>
-        <Text style={[styles.preflopCell, styles.preflopPos]}>{r.position}</Text>
-        <Text style={styles.preflopCell}>{pct(r.openRaiseCount, r.openOpps)}</Text>
-        <Text style={styles.preflopCell}>{pct(r.pfrCount, r.hands)}</Text>
-        <Text style={styles.preflopCell}>{pct(r.threeBetCount, r.threeBetOpps)}</Text>
-        <Text style={styles.preflopCell}>{pct(r.fourBetCount, r.fourBetOpps)}</Text>
+      <View key={r.position} style={s.preflopRow}>
+        <Text style={[s.preflopCell, s.preflopPos]}>{r.position}</Text>
+        <Text style={s.preflopCell}>{pct(r.openRaiseCount, r.openOpps)}</Text>
+        <Text style={s.preflopCell}>{pct(r.pfrCount, r.hands)}</Text>
+        <Text style={s.preflopCell}>{pct(r.threeBetCount, r.threeBetOpps)}</Text>
+        <Text style={s.preflopCell}>{pct(r.fourBetCount, r.fourBetOpps)}</Text>
       </View>
     );
   }
 
   if (!token || !player) {
     return (
-      <View style={[styles.container, { padding: 16 }]}>
-        <Text style={styles.title}>Player Profile</Text>
-        <Text style={styles.subtitle}>Please log in first.</Text>
+      <View style={[s.container, { padding: 16, flex: 1 }]}>
+        <Text style={s.title}>Games and Statistics</Text>
+        <Text style={s.subtitle}>Please log in first.</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>Game history (including club + non-club)</Text>
+    <ScrollView style={s.scrollContainer} contentContainerStyle={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>{title}</Text>
+        <Text style={s.subtitle}>Your performance across all games</Text>
+      </View>
 
-      {history.profileError ? <Text style={styles.error}>{history.profileError}</Text> : null}
+      {history.profileError ? <Text style={s.error}>{history.profileError}</Text> : null}
 
-      <View style={[styles.card, { marginBottom: 12 }]}>
-        <Text style={styles.sectionTitle}>Stats (finished hands)</Text>
-        {statsError ? <Text style={styles.error}>{statsError}</Text> : null}
+      <View style={[s.card, { marginBottom: 24 }]}>
+        <Text style={s.sectionTitle}>Performance Stats</Text>
+        {statsError ? <Text style={s.error}>{statsError}</Text> : null}
 
-        <View style={styles.filtersRow}>
+        <View style={s.filtersRow}>
           {(['7d', '30d', '90d', 'all'] as const).map((p) => (
             <Pressable
               key={p}
-              style={[styles.chip, rangePreset === p ? styles.chipActive : null]}
+              style={[s.chip, rangePreset === p ? s.chipActive : null]}
               onPress={() => setRangePreset(p)}
             >
-              <Text style={[styles.chipText, rangePreset === p ? styles.chipTextActive : null]}>
+              <Text style={[s.chipText, rangePreset === p ? s.chipTextActive : null]}>
                 {p === 'all' ? 'All time' : p}
               </Text>
             </Pressable>
           ))}
 
           <Pressable
-            style={styles.resetChip}
+            style={s.resetChip}
             onPress={() => {
               setRangePreset('all');
               setClubIdx(-1);
@@ -140,155 +144,194 @@ export default function ProfileScreen() {
               setGameIdx(-1);
             }}
           >
-            <Text style={styles.resetChipText}>Reset</Text>
+            <Text style={s.resetChipText}>Reset</Text>
           </Pressable>
         </View>
 
-        <View style={styles.filtersRow}>
+        <View style={s.filtersRow}>
           <Pressable
-            style={styles.chip}
+            style={s.chip}
             onPress={() => setClubIdx((prev) => (clubs.length ? ((prev + 2) % (clubs.length + 1)) - 1 : -1))}
           >
-            <Text style={styles.chipText}>Club: {clubIdx >= 0 ? clubs[clubIdx]?.name || '—' : 'All'}</Text>
+            <Text style={s.chipText}>Club: {clubIdx >= 0 ? clubs[clubIdx]?.name || '—' : 'All'}</Text>
           </Pressable>
 
           <Pressable
-            style={styles.chip}
+            style={s.chip}
             onPress={() => {
               const order: Array<PokerVariant | 'all'> = ['all', 'texas-holdem', 'omaha', 'omaha-hi-lo'];
               const idx = order.indexOf(variant);
               setVariant(order[(idx + 1) % order.length]);
             }}
           >
-            <Text style={styles.chipText}>Variant: {variant}</Text>
+            <Text style={s.chipText}>Variant: {variant}</Text>
           </Pressable>
 
           <Pressable
-            style={styles.chip}
+            style={s.chip}
             onPress={() => {
               const order: Array<DepthBucket | 'all'> = ['all', '0-50', '50-100', '100-150', '150-500', '500+'];
               const idx = order.indexOf(depthBucket);
               setDepthBucket(order[(idx + 1) % order.length]);
             }}
           >
-            <Text style={styles.chipText}>Depth: {depthBucket}</Text>
+            <Text style={s.chipText}>Depth: {depthBucket}</Text>
           </Pressable>
 
           <Pressable
-            style={styles.chip}
+            style={s.chip}
             onPress={() =>
               setGameIdx((prev) => (gamesInRange.length ? ((prev + 2) % (gamesInRange.length + 1)) - 1 : -1))
             }
           >
-            <Text style={styles.chipText}>Game: {gameIdx >= 0 ? gamesInRange[gameIdx]?.code || '—' : 'All'}</Text>
+            <Text style={s.chipText}>Game: {gameIdx >= 0 ? gamesInRange[gameIdx]?.code || '—' : 'All'}</Text>
           </Pressable>
         </View>
 
         {summary ? (
-          <View style={{ marginTop: 8 }}>
-            <Text style={styles.statLine}>
-              Hands: {summary.totalHands} • Won: {summary.handsWon} • Win%: {summary.winPercentage.toFixed(1)}
-            </Text>
-            <Text style={styles.statLine}>
-              Net: {summary.totalWinnings} chips • bb/100: {summary.bb100 === null ? '—' : summary.bb100.toFixed(1)}
-            </Text>
-            <Text style={styles.statLine}>
-              VPIP: {summary.vpip.toFixed(1)} • PFR: {summary.pfr.toFixed(1)} • 3bet: {summary.threeBetPercentage.toFixed(1)}
-            </Text>
-            <Text style={styles.statLine}>
-              WTSD: {summary.wtsd.toFixed(1)} • W$SD: {summary.wsd.toFixed(1)} • AF: {summary.aggressionFactor.toFixed(2)} • Cbet: {summary.cbetPercentage.toFixed(1)}
-            </Text>
-            <Text style={[styles.subtitle, { marginTop: 6, marginBottom: 0, fontSize: 12 }]}>
-              {statsLoading ? 'Refreshing…' : 'Filters apply to finished hands only.'}
+          <View style={{ marginTop: 16 }}>
+            <View style={s.statsGrid}>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.totalHands}</Text>
+                <Text style={s.statLabel}>Hands</Text>
+              </View>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.winPercentage.toFixed(1)}%</Text>
+                <Text style={s.statLabel}>Win Rate</Text>
+              </View>
+              <View style={s.statBox}>
+                <Text style={[s.statValue, summary.totalWinnings >= 0 ? s.statPositive : s.statNegative]}>
+                  {summary.totalWinnings >= 0 ? '+' : ''}{summary.totalWinnings}
+                </Text>
+                <Text style={s.statLabel}>Net Chips</Text>
+              </View>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.bb100 === null ? '—' : summary.bb100.toFixed(1)}</Text>
+                <Text style={s.statLabel}>bb/100</Text>
+              </View>
+            </View>
+
+            <View style={[s.statsGrid, { marginTop: 12 }]}>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.vpip.toFixed(1)}</Text>
+                <Text style={s.statLabel}>VPIP</Text>
+              </View>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.pfr.toFixed(1)}</Text>
+                <Text style={s.statLabel}>PFR</Text>
+              </View>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.threeBetPercentage.toFixed(1)}</Text>
+                <Text style={s.statLabel}>3-Bet %</Text>
+              </View>
+              <View style={s.statBox}>
+                <Text style={s.statValue}>{summary.aggressionFactor.toFixed(2)}</Text>
+                <Text style={s.statLabel}>AF</Text>
+              </View>
+            </View>
+
+            <Text style={[s.muted, { marginTop: 12 }]}>
+              {statsLoading ? 'Refreshing…' : 'WTSD: ' + summary.wtsd.toFixed(1) + ' • W$SD: ' + summary.wsd.toFixed(1) + ' • C-Bet: ' + summary.cbetPercentage.toFixed(1)}
             </Text>
 
             {vsOpponents.length ? (
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.sectionTitle}>Vs players (hands together)</Text>
+              <View style={{ marginTop: 20 }}>
+                <Text style={s.sectionTitle}>Top Opponents</Text>
                 {vsOpponents.slice(0, 5).map((o) => (
-                  <Text key={o.opponentId} style={styles.statLine}>
-                    {o.opponentId} • hands {o.handsTogether} • net {o.totalWinnings} • bb/100{' '}
-                    {o.bb100 === null ? '—' : o.bb100.toFixed(1)} • WSD(vs) {o.wsdVsOpponent.toFixed(1)}
-                  </Text>
+                  <View key={o.opponentId} style={s.opponentRow}>
+                    <Text style={s.opponentName}>{o.opponentId}</Text>
+                    <Text style={s.opponentStats}>
+                      {o.handsTogether} hands • {o.totalWinnings >= 0 ? '+' : ''}{o.totalWinnings} chips
+                    </Text>
+                  </View>
                 ))}
               </View>
             ) : null}
 
-            <View style={{ marginTop: 10 }}>
-              <Text style={styles.sectionTitle}>Preflop charts (by position)</Text>
-              <View style={styles.preflopRow}>
-                <Text style={[styles.preflopCell, styles.preflopHeader, styles.preflopPos]}>Pos</Text>
-                <Text style={[styles.preflopCell, styles.preflopHeader]}>RFI</Text>
-                <Text style={[styles.preflopCell, styles.preflopHeader]}>PFR</Text>
-                <Text style={[styles.preflopCell, styles.preflopHeader]}>3B</Text>
-                <Text style={[styles.preflopCell, styles.preflopHeader]}>4B</Text>
+            <View style={{ marginTop: 20 }}>
+              <Text style={s.sectionTitle}>Preflop by Position</Text>
+              <View style={s.preflopRow}>
+                <Text style={[s.preflopCell, s.preflopHeader, s.preflopPos]}>Pos</Text>
+                <Text style={[s.preflopCell, s.preflopHeader]}>RFI</Text>
+                <Text style={[s.preflopCell, s.preflopHeader]}>PFR</Text>
+                <Text style={[s.preflopCell, s.preflopHeader]}>3B</Text>
+                <Text style={[s.preflopCell, s.preflopHeader]}>4B</Text>
               </View>
               {preflopRows.length ? (
                 preflopRows.map(renderPreflopRow)
               ) : (
-                <Text style={styles.muted}>No positional preflop data yet (needs newer hands).</Text>
+                <Text style={s.muted}>No positional preflop data yet.</Text>
               )}
             </View>
           </View>
         ) : (
-          <Text style={styles.subtitle}>{statsLoading ? 'Loading…' : 'No stats yet. Finish a hand first.'}</Text>
+          <Text style={s.muted}>{statsLoading ? 'Loading…' : 'No stats yet. Finish a hand first.'}</Text>
         )}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Your sessions</Text>
+      <View style={s.card}>
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Session History</Text>
+          <Pressable style={s.ghostButton} onPress={() => void history.fetchMyHistory(token)}>
+            <Text style={s.ghostButtonText}>{history.profileLoading ? 'Refreshing…' : 'Refresh'}</Text>
+          </Pressable>
+        </View>
+        
         {sessions.length === 0 ? (
-          <Text style={styles.subtitle}>No history yet. Join a table and finish a hand.</Text>
+          <Text style={s.muted}>No history yet. Join a table and finish a hand.</Text>
         ) : (
-          sessions.map((s) => {
-            const expanded = !!expandedSessionIds[s.sessionId];
-            const joined = new Date(s.joinedAt).toLocaleString();
-            const left = s.leftAt ? new Date(s.leftAt).toLocaleString() : 'still seated';
-            const label = s.clubId ? 'club game' : 'non-club game';
+          sessions.map((ses) => {
+            const expanded = !!expandedSessionIds[ses.sessionId];
+            const joined = new Date(ses.joinedAt).toLocaleString();
+            const left = ses.leftAt ? new Date(ses.leftAt).toLocaleString() : 'still seated';
+            const label = ses.clubId ? 'Club' : 'Open';
             return (
-              <View key={s.sessionId} style={styles.row}>
-                <View style={styles.rowHeader}>
+              <View key={ses.sessionId} style={s.row}>
+                <View style={s.rowHeader}>
                   <Pressable
                     style={{ flex: 1 }}
                     onPress={() =>
-                      setExpandedSessionIds((prev) => ({ ...prev, [s.sessionId]: !prev[s.sessionId] }))
+                      setExpandedSessionIds((prev) => ({ ...prev, [ses.sessionId]: !prev[ses.sessionId] }))
                     }
                   >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle}>
-                      {s.code} • {label}
-                    </Text>
-                    <Text style={styles.rowMeta}>
-                      {joined} → {left} • hands: {s.handsCount}
-                    </Text>
-                  </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={s.sessionTitleRow}>
+                        <Text style={s.rowTitle}>{ses.code}</Text>
+                        <View style={s.sessionTypePill}>
+                          <Text style={s.sessionTypePillText}>{label}</Text>
+                        </View>
+                      </View>
+                      <Text style={s.rowMeta}>
+                        {joined} → {left} • {ses.handsCount} hands
+                      </Text>
+                    </View>
                   </Pressable>
 
                   <Pressable
-                    style={styles.logButton}
-                    onPress={() => router.push(`/history/game/${s.gameId}?sessionId=${s.sessionId}`)}
+                    style={s.logButton}
+                    onPress={() => router.push(`/history/game/${ses.gameId}?sessionId=${ses.sessionId}`)}
                   >
-                    <Text style={styles.logButtonText}>Log</Text>
+                    <Text style={s.logButtonText}>View</Text>
                   </Pressable>
 
-                  <Text style={styles.chev}>{expanded ? 'Hide' : 'Show'}</Text>
+                  <Text style={s.chev}>{expanded ? '▼' : '▶'}</Text>
                 </View>
 
                 {expanded ? (
-                  <View style={styles.handsContainer}>
-                    {s.hands.length === 0 ? (
-                      <Text style={styles.subtitle}>No finished hands in this session yet.</Text>
+                  <View style={s.handsContainer}>
+                    {ses.hands.length === 0 ? (
+                      <Text style={s.muted}>No finished hands in this session yet.</Text>
                     ) : (
-                      s.hands.map((h) => {
+                      ses.hands.map((h) => {
                         const ended = new Date(h.endedAt).toLocaleString();
                         const winners = h.winners.map((w) => `${w.playerId}:${w.amount}`).join(', ');
                         return (
-                          <View key={`${s.sessionId}:${h.handNumber}`} style={styles.handRow}>
-                            <Text style={styles.handTitle}>
+                          <View key={`${ses.sessionId}:${h.handNumber}`} style={s.handRow}>
+                            <Text style={s.handTitle}>
                               Hand #{h.handNumber} • {h.reason} • pot {h.pot}
                             </Text>
-                            <Text style={styles.handMeta}>
-                              ended: {ended} • winners: {winners || '—'} • actions: {h.actions.length}
+                            <Text style={s.handMeta}>
+                              {ended} • winners: {winners || '—'}
                             </Text>
                           </View>
                         );
@@ -300,15 +343,282 @@ export default function ProfileScreen() {
             );
           })
         )}
-
-        <Pressable style={styles.secondaryButton} onPress={() => void history.fetchMyHistory(token)}>
-          <Text style={styles.secondaryButtonText}>{history.profileLoading ? 'Refreshing…' : 'Refresh'}</Text>
-        </Pressable>
       </View>
     </ScrollView>
   );
 }
 
+// Web styles - dark theme
+const webStyles = StyleSheet.create({
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  container: {
+    padding: 48,
+    paddingTop: 32,
+  },
+  header: {
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: '800',
+    marginBottom: 10,
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  error: {
+    color: '#ef4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 28,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  chipActive: {
+    backgroundColor: '#22c55e',
+    borderColor: '#22c55e',
+  },
+  chipText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  chipTextActive: {
+    color: '#fff',
+  },
+  resetChip: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  resetChipText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statPositive: {
+    color: '#22c55e',
+  },
+  statNegative: {
+    color: '#ef4444',
+  },
+  opponentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  opponentName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  opponentStats: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  muted: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  preflopRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  preflopCell: {
+    flex: 1,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  preflopPos: {
+    flex: 1.2,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  preflopHeader: {
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 12,
+    textTransform: 'uppercase',
+  },
+  row: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  rowHeader: {
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  sessionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  rowTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  sessionTypePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sessionTypePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.6)',
+    textTransform: 'uppercase',
+  },
+  rowMeta: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  chev: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  logButton: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  logButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  ghostButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  ghostButtonText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '700',
+  },
+  handsContainer: {
+    paddingBottom: 16,
+    paddingLeft: 16,
+  },
+  handRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  handTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  handMeta: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  secondaryButton: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  secondaryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+});
+
+// Native styles - original light theme
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
@@ -318,6 +628,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     padding: 16,
+  },
+  header: {
+    marginBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -344,69 +657,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
-  row: {
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  rowHeader: {
-    paddingVertical: 10,
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  rowTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  rowMeta: {
-    fontSize: 12,
-    color: '#777',
-  },
-  chev: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#111',
-  },
-  logButton: {
-    borderWidth: 1,
-    borderColor: '#111',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  logButtonText: {
-    color: '#111',
-    fontWeight: '800',
-    fontSize: 12,
-  },
-  handsContainer: {
-    paddingBottom: 10,
-    paddingLeft: 10,
-  },
-  handRow: {
-    paddingVertical: 8,
-  },
-  handTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  handMeta: {
-    fontSize: 12,
-    color: '#777',
-  },
-  secondaryButton: {
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#111',
-  },
-  secondaryButtonText: {
-    color: '#111',
-    fontWeight: '700',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   filtersRow: {
     flexDirection: 'row',
@@ -446,11 +701,50 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 12,
   },
-  statLine: {
-    fontSize: 13,
-    color: '#222',
-    marginBottom: 4,
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#666',
+    textTransform: 'uppercase',
+  },
+  statPositive: {
+    color: '#22c55e',
+  },
+  statNegative: {
+    color: '#ef4444',
+  },
+  opponentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  opponentName: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#111',
+  },
+  opponentStats: {
+    fontSize: 13,
+    color: '#666',
   },
   muted: {
     color: '#777',
@@ -475,5 +769,97 @@ const styles = StyleSheet.create({
   preflopHeader: {
     fontWeight: '800',
   },
+  row: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  rowHeader: {
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sessionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  sessionTypePill: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  sessionTypePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#666',
+  },
+  rowMeta: {
+    fontSize: 12,
+    color: '#777',
+  },
+  chev: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111',
+  },
+  logButton: {
+    borderWidth: 1,
+    borderColor: '#111',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  logButtonText: {
+    color: '#111',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  ghostButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e6e6e6',
+    backgroundColor: '#fafafa',
+  },
+  ghostButtonText: {
+    fontSize: 12,
+    color: '#111',
+    fontWeight: '800',
+  },
+  handsContainer: {
+    paddingBottom: 10,
+    paddingLeft: 10,
+  },
+  handRow: {
+    paddingVertical: 8,
+  },
+  handTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  handMeta: {
+    fontSize: 12,
+    color: '#777',
+  },
+  secondaryButton: {
+    marginTop: 10,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#111',
+  },
+  secondaryButtonText: {
+    color: '#111',
+    fontWeight: '700',
+  },
 });
-

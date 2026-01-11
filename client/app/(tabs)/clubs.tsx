@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../../store/authStore';
 import { useClubStore } from '../../store/clubStore';
 import { useClubGameStore } from '../../store/clubGameStore';
 import { LoadingScreen } from '../../components/LoadingScreen';
+
+const isWeb = Platform.OS === 'web';
 
 export default function ClubsScreen() {
   const router = useRouter();
@@ -42,18 +44,13 @@ export default function ClubsScreen() {
     if (!token) return;
     const currentClubs = clubsRef.current || [];
     if (currentClubs.length === 0) return;
-    // Fetch per-club active games so we can show a lightweight "LIVE" preview.
-    // This is intentionally best-effort; failures should not block the clubs UI.
     await Promise.allSettled(currentClubs.map((c) => fetchClubGames(token, c.id)));
   }, [token, fetchClubGames]);
 
-  // Refresh whenever the tab is focused (keeps list in sync after creating/joining elsewhere).
   useFocusEffect(
     useCallback(() => {
       if (!token) return () => undefined;
       void fetchMyClubs(token);
-
-      // Start polling while focused so "live" previews stay fresh.
       void refreshLive();
       if (livePollRef.current) clearInterval(livePollRef.current);
       livePollRef.current = setInterval(() => void refreshLive(), 6000);
@@ -65,93 +62,103 @@ export default function ClubsScreen() {
     }, [token, fetchMyClubs, refreshLive])
   );
 
-  // Ensure the interval is cleaned up when we leave this screen.
   useEffect(() => {
     return () => {
       if (livePollRef.current) clearInterval(livePollRef.current);
     };
   }, []);
 
+  // Use web or native styles
+  const s = isWeb ? webStyles : styles;
+
   if (!token || !player) {
     return (
-      <View style={[styles.container, { padding: 16 }]}>
-        <Text style={styles.title}>Clubs</Text>
-        <Text style={styles.subtitle}>Please log in first.</Text>
+      <View style={[s.container, { padding: 16, flex: 1 }]}>
+        <Text style={s.title}>Clubs</Text>
+        <Text style={s.subtitle}>Please log in first.</Text>
       </View>
     );
   }
 
   if (loading && clubs.length === 0) {
-    return <LoadingScreen backgroundColor="#fff" />;
+    return isWeb ? (
+      <View style={[s.container, { flex: 1 }]}>
+        <Text style={s.subtitle}>Loading...</Text>
+      </View>
+    ) : (
+      <LoadingScreen backgroundColor="#fff" />
+    );
   }
 
   return (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Clubs</Text>
-        <Text style={styles.subtitle}>Create or join. See what’s live.</Text>
+    <ScrollView style={s.scrollContainer} contentContainerStyle={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>Clubs</Text>
+        <Text style={s.subtitle}>Create or join. See what's live.</Text>
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={s.error}>{error}</Text> : null}
 
-      <View style={styles.twoCol}>
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Create club</Text>
+      <View style={s.twoCol}>
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Create club</Text>
           <TextInput
             value={clubName}
             onChangeText={setClubName}
             placeholder="Name"
+            placeholderTextColor={isWeb ? 'rgba(255,255,255,0.4)' : '#999'}
             autoCorrect={false}
             spellCheck={false}
-            style={styles.input}
+            style={s.input}
           />
           <Pressable
-            style={[styles.primaryButton, !trimmedClubName ? styles.buttonDisabled : null]}
+            style={[s.primaryButton, !trimmedClubName ? s.buttonDisabled : null]}
             disabled={loading || !trimmedClubName}
             onPress={async () => {
               const created = await createClub(token, trimmedClubName);
               if (created) setClubName('');
             }}
           >
-            <Text style={styles.primaryButtonText}>{loading ? 'Creating…' : 'Create'}</Text>
+            <Text style={s.primaryButtonText}>{loading ? 'Creating…' : 'Create'}</Text>
           </Pressable>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Join club</Text>
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Join club</Text>
           <TextInput
             value={inviteCode}
             onChangeText={setInviteCode}
             placeholder="Code"
+            placeholderTextColor={isWeb ? 'rgba(255,255,255,0.4)' : '#999'}
             autoCapitalize="characters"
             autoCorrect={false}
             spellCheck={false}
-            style={styles.input}
+            style={s.input}
           />
           <Pressable
-            style={[styles.primaryButton, !normalizedInviteCode ? styles.buttonDisabled : null]}
+            style={[s.primaryButton, !normalizedInviteCode ? s.buttonDisabled : null]}
             disabled={loading || !normalizedInviteCode}
             onPress={async () => {
               const joined = await joinClub(token, normalizedInviteCode);
               if (joined) setInviteCode('');
             }}
           >
-            <Text style={styles.primaryButtonText}>{loading ? 'Joining…' : 'Join'}</Text>
+            <Text style={s.primaryButtonText}>{loading ? 'Joining…' : 'Join'}</Text>
           </Pressable>
-          <Text style={styles.helperText}>Tip: codes are 6–8 chars (A–Z, 0–9).</Text>
+          <Text style={s.helperText}>Tip: codes are 6–8 chars (A–Z, 0–9).</Text>
         </View>
       </View>
 
-      <View style={[styles.card, { marginTop: 2 }]}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Your clubs</Text>
-          <Pressable style={styles.ghostButton} onPress={() => void fetchMyClubs(token)} disabled={loading}>
-            <Text style={styles.ghostButtonText}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
+      <View style={[s.card, { marginTop: 2 }]}>
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Your clubs</Text>
+          <Pressable style={s.ghostButton} onPress={() => void fetchMyClubs(token)} disabled={loading}>
+            <Text style={s.ghostButtonText}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
           </Pressable>
         </View>
 
         {clubs.length === 0 ? (
-          <Text style={styles.emptyText}>You’re not in any clubs yet.</Text>
+          <Text style={s.emptyText}>You're not in any clubs yet.</Text>
         ) : (
           clubs.map((c, idx) => {
             const liveGames = gamesByClubId[c.id] || [];
@@ -160,36 +167,36 @@ export default function ClubsScreen() {
             return (
               <Pressable
                 key={c.id}
-                style={[styles.clubRow, live ? styles.clubRowLive : null, idx === 0 ? styles.clubRowFirst : null]}
+                style={[s.clubRow, live ? s.clubRowLive : null, idx === 0 ? s.clubRowFirst : null]}
                 onPress={() => router.push(`/club/${c.id}`)}
                 disabled={loading}
               >
                 <View style={{ flex: 1 }}>
-                  <View style={styles.clubTitleRow}>
-                    <Text style={styles.clubName}>{c.name}</Text>
+                  <View style={s.clubTitleRow}>
+                    <Text style={s.clubName}>{c.name}</Text>
                     {live ? (
-                      <View style={styles.livePill}>
-                        <Text style={styles.livePillText}>LIVE</Text>
+                      <View style={s.livePill}>
+                        <Text style={s.livePillText}>LIVE</Text>
                       </View>
                     ) : null}
                   </View>
 
-                  <Text style={styles.clubMeta}>
+                  <Text style={s.clubMeta}>
                     {c.memberIds?.length ?? 0} members
                     {c.inviteCode ? `  •  code ${c.inviteCode}` : ''}
                   </Text>
 
                   {live && preview ? (
-                    <Text style={styles.livePreview}>
+                    <Text style={s.livePreview}>
                       Game {preview.code} • {preview.phase} • {preview.playerCount} players
                       {liveGames.length > 1 ? `  •  +${liveGames.length - 1} more` : ''}
                     </Text>
                   ) : (
-                    <Text style={styles.livePreviewMuted}>No live game right now.</Text>
+                    <Text style={s.livePreviewMuted}>No live game right now.</Text>
                   )}
                 </View>
 
-                <Text style={styles.chevron}>›</Text>
+                <Text style={s.chevron}>›</Text>
               </Pressable>
             );
           })
@@ -199,6 +206,189 @@ export default function ClubsScreen() {
   );
 }
 
+// Web styles - dark theme with glass morphism
+const webStyles = StyleSheet.create({
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  container: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    padding: 48,
+    paddingTop: 32,
+  },
+  header: {
+    width: '100%',
+    maxWidth: 640,
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: '800',
+    marginBottom: 10,
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 8,
+  },
+  error: {
+    color: '#ef4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 24,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  twoCol: {
+    width: '100%',
+    maxWidth: 640,
+    flexDirection: 'row',
+    gap: 24,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 28,
+    marginBottom: 24,
+    backdropFilter: 'blur(10px)',
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 16,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    color: '#fff',
+    fontSize: 15,
+  },
+  primaryButton: {
+    backgroundColor: '#22c55e',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  ghostButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  ghostButtonText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '700',
+  },
+  helperText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  emptyText: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
+    paddingVertical: 16,
+  },
+  clubRow: {
+    paddingVertical: 18,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  clubRowFirst: {
+    borderTopWidth: 0,
+  },
+  clubRowLive: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    marginHorizontal: -16,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  clubTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 6,
+  },
+  clubName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  clubMeta: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  livePill: {
+    backgroundColor: '#22c55e',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  livePillText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  livePreview: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#22c55e',
+    fontWeight: '600',
+  },
+  livePreviewMuted: {
+    marginTop: 8,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.35)',
+  },
+  chevron: {
+    fontSize: 26,
+    color: 'rgba(255, 255, 255, 0.3)',
+    marginLeft: 8,
+  },
+});
+
+// Native styles - original light theme
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
@@ -363,5 +553,3 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
 });
-
-

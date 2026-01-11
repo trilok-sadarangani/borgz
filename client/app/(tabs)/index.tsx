@@ -1,10 +1,159 @@
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { GameSettingsForm } from '../../components/GameSettingsForm';
 import { GameSettings } from '../../../shared/types/game.types';
+
+// Web-specific hero component
+function WebHero() {
+  const router = useRouter();
+  const { player } = useAuthStore();
+  const gameStore = useGameStore();
+  const [code, setCode] = useState('');
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  
+  const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
+
+  const handleQuickPlay = async () => {
+    if (!player) return;
+    try {
+      const newCode = await gameStore.createGame({});
+      await gameStore.joinGame(newCode, player.id, player.name);
+      if (!useGameStore.getState().error) router.push('/(tabs)/game');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create game';
+      useGameStore.setState({ error: msg });
+    }
+  };
+
+  const handleJoinGame = async () => {
+    if (!player || !normalizedCode) return;
+    await gameStore.joinGame(normalizedCode, player.id, player.name);
+    if (!useGameStore.getState().error) {
+      setShowJoinModal(false);
+      router.push('/(tabs)/game');
+    }
+  };
+
+  return (
+    <View style={webStyles.heroContainer}>
+      {gameStore.error && (
+        <Pressable onPress={() => useGameStore.setState({ error: null })}>
+          <Text style={webStyles.error}>{gameStore.error}</Text>
+        </Pressable>
+      )}
+      
+      <View style={webStyles.buttonRow}>
+        <Pressable style={webStyles.quickPlayButton} onPress={handleQuickPlay}>
+          <Text style={webStyles.quickPlayButtonText}>Quick Play</Text>
+        </Pressable>
+        
+        <Pressable 
+          style={webStyles.joinButton} 
+          onPress={() => setShowJoinModal(!showJoinModal)}
+        >
+          <Text style={webStyles.joinButtonText}>Join Game</Text>
+        </Pressable>
+      </View>
+
+      {showJoinModal && (
+        <View style={webStyles.joinModal}>
+          <TextInput
+            value={code}
+            onChangeText={setCode}
+            placeholder="Enter game code"
+            placeholderTextColor="rgba(255,255,255,0.4)"
+            autoCapitalize="characters"
+            style={webStyles.codeInput}
+          />
+          <Pressable style={webStyles.joinSubmitButton} onPress={handleJoinGame}>
+            <Text style={webStyles.joinSubmitText}>Join</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const webStyles = StyleSheet.create({
+  heroContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  error: {
+    color: '#ef4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 24,
+    fontSize: 14,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  quickPlayButton: {
+    backgroundColor: '#000',
+    paddingHorizontal: 48,
+    paddingVertical: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  quickPlayButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  joinButton: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 32,
+    paddingVertical: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  joinButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  joinModal: {
+    marginTop: 24,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  codeInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#fff',
+    width: 200,
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  joinSubmitButton: {
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  joinSubmitText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+});
 
 export default function LobbyScreen() {
   const router = useRouter();
@@ -15,6 +164,11 @@ export default function LobbyScreen() {
   const [gameSettings, setGameSettings] = useState<Partial<GameSettings>>({});
 
   const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
+
+  // On web, show the hero component
+  if (Platform.OS === 'web') {
+    return <WebHero />;
+  }
 
   if (!player) {
     return (
@@ -59,7 +213,6 @@ export default function LobbyScreen() {
           style={styles.primaryButton}
           onPress={async () => {
             await gameStore.joinGame(normalizedCode, player.id, player.name);
-            // If join succeeded, take the user to the table immediately.
             if (!useGameStore.getState().error) router.push('/(tabs)/game');
           }}
         >
@@ -97,7 +250,6 @@ export default function LobbyScreen() {
               await gameStore.joinGame(newCode, player.id, player.name);
               if (!useGameStore.getState().error) router.push('/(tabs)/game');
             } catch (e) {
-              // createGame throws on failure; surface it via the existing error UI.
               const msg = e instanceof Error ? e.message : 'Failed to create game';
               useGameStore.setState({ error: msg });
             }

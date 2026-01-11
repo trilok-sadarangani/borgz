@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, Platform, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import * as WebBrowser from 'expo-web-browser';
@@ -14,21 +14,217 @@ declare const __DEV__: boolean;
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Animated background component with slowly shifting colors
+function AnimatedBackground() {
+  const animation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(animation, {
+        toValue: 1,
+        duration: 20000, // 20 seconds for full cycle
+        easing: Easing.linear,
+        useNativeDriver: false,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [animation]);
+
+  // Interpolate through soft pastel colors
+  const backgroundColor = animation.interpolate({
+    inputRange: [0, 0.2, 0.4, 0.6, 0.8, 1],
+    outputRange: [
+      '#f0fdf4', // soft mint
+      '#ecfeff', // soft cyan
+      '#f0f9ff', // soft sky
+      '#faf5ff', // soft purple
+      '#fff1f2', // soft rose
+      '#f0fdf4', // back to mint
+    ],
+  });
+
+  const glow1Color = animation.interpolate({
+    inputRange: [0, 0.25, 0.5, 0.75, 1],
+    outputRange: [
+      'rgba(34, 197, 94, 0.15)',   // green
+      'rgba(6, 182, 212, 0.15)',   // cyan
+      'rgba(139, 92, 246, 0.15)',  // violet
+      'rgba(236, 72, 153, 0.15)',  // pink
+      'rgba(34, 197, 94, 0.15)',   // back to green
+    ],
+  });
+
+  const glow2Color = animation.interpolate({
+    inputRange: [0, 0.25, 0.5, 0.75, 1],
+    outputRange: [
+      'rgba(168, 85, 247, 0.12)',  // purple
+      'rgba(34, 197, 94, 0.12)',   // green
+      'rgba(6, 182, 212, 0.12)',   // cyan
+      'rgba(139, 92, 246, 0.12)',  // violet
+      'rgba(168, 85, 247, 0.12)',  // back to purple
+    ],
+  });
+
+  // For web, we'll use CSS animations instead for smoother performance
+  if (Platform.OS === 'web') {
+    return (
+      <>
+        <style>
+          {`
+            @keyframes gradientShift {
+              0%, 100% { background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 50%, #f0f9ff 100%); }
+              20% { background: linear-gradient(135deg, #ecfeff 0%, #f0f9ff 50%, #faf5ff 100%); }
+              40% { background: linear-gradient(135deg, #f0f9ff 0%, #faf5ff 50%, #fff1f2 100%); }
+              60% { background: linear-gradient(135deg, #faf5ff 0%, #fff1f2 50%, #fef3c7 100%); }
+              80% { background: linear-gradient(135deg, #fff1f2 0%, #fef3c7 50%, #f0fdf4 100%); }
+            }
+            @keyframes glowPulse1 {
+              0%, 100% { background: rgba(34, 197, 94, 0.18); transform: translate(-50%, -50%) scale(1); }
+              25% { background: rgba(6, 182, 212, 0.18); transform: translate(-50%, -50%) scale(1.1); }
+              50% { background: rgba(139, 92, 246, 0.18); transform: translate(-50%, -50%) scale(0.95); }
+              75% { background: rgba(236, 72, 153, 0.18); transform: translate(-50%, -50%) scale(1.05); }
+            }
+            @keyframes glowPulse2 {
+              0%, 100% { background: rgba(168, 85, 247, 0.15); transform: translate(50%, 50%) scale(1); }
+              25% { background: rgba(34, 197, 94, 0.15); transform: translate(50%, 50%) scale(1.1); }
+              50% { background: rgba(6, 182, 212, 0.15); transform: translate(50%, 50%) scale(0.9); }
+              75% { background: rgba(251, 191, 36, 0.15); transform: translate(50%, 50%) scale(1.05); }
+            }
+            .animated-bg {
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              animation: gradientShift 20s ease-in-out infinite;
+            }
+            .glow1 {
+              position: absolute;
+              top: 10%;
+              left: 20%;
+              width: 500px;
+              height: 500px;
+              border-radius: 50%;
+              filter: blur(100px);
+              animation: glowPulse1 15s ease-in-out infinite;
+            }
+            .glow2 {
+              position: absolute;
+              bottom: 10%;
+              right: 20%;
+              width: 400px;
+              height: 400px;
+              border-radius: 50%;
+              filter: blur(100px);
+              animation: glowPulse2 18s ease-in-out infinite;
+            }
+          `}
+        </style>
+        <div className="animated-bg" />
+        <div className="glow1" />
+        <div className="glow2" />
+      </>
+    );
+  }
+
+  // For native, use Animated
+  return (
+    <>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor }]} />
+      <Animated.View
+        style={[
+          styles.backgroundGlow,
+          { backgroundColor: glow1Color },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.backgroundGlowSecondary,
+          { backgroundColor: glow2Color },
+        ]}
+      />
+    </>
+  );
+}
+
+// Icons as simple text components for now
+function GoogleIcon() {
+  return (
+    <View style={iconStyles.googleIcon}>
+      <Text style={iconStyles.googleG}>G</Text>
+    </View>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <View style={iconStyles.appleIcon}>
+      <Text style={iconStyles.appleLogo}></Text>
+    </View>
+  );
+}
+
+function EmailIcon() {
+  return (
+    <View style={iconStyles.emailIcon}>
+      <Text style={iconStyles.emailSymbol}>✉</Text>
+    </View>
+  );
+}
+
+const iconStyles = StyleSheet.create({
+  googleIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleG: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4285F4',
+  },
+  appleIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appleLogo: {
+    fontSize: 18,
+    color: '#fff',
+    marginTop: -2,
+  },
+  emailIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emailSymbol: {
+    fontSize: 14,
+    color: '#666',
+  },
+});
+
 export default function LoginScreen() {
   const router = useRouter();
   const { token, player, seedPlayers, loading, error, fetchSeedPlayers, login, loginWithAuth0AccessToken, clearError } =
     useAuthStore();
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
 
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [showDevAuth, setShowDevAuth] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [password, setPassword] = useState('borgz');
   const [auth0Error, setAuth0Error] = useState<string | null>(null);
   const [seedLoaded, setSeedLoaded] = useState(false);
 
   const { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience } = getAuth0Config();
-  // Default: only show seed auth in dev builds.
-  // Allow override via env for staging/dev.
-  // IMPORTANT: Keep this as a direct `process.env.EXPO_PUBLIC_*` reference so Expo can inline it at build time.
+  
   const showSeedAuth = Boolean(
     __DEV__ ||
       String(typeof process !== 'undefined' ? (process.env.EXPO_PUBLIC_SHOW_SEED_AUTH as string | undefined) : '')
@@ -38,8 +234,6 @@ export default function LoginScreen() {
 
   const discovery = AuthSession.useAutoDiscovery(auth0Domain ? `https://${auth0Domain}` : '');
   const redirectUri = useMemo(() => {
-    // On web, always use the actual origin (includes the real port, e.g. :8082).
-    // This prevents Auth0 "Callback URL mismatch" when Expo picks a different dev port.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isWeb = typeof (globalThis as any)?.document !== 'undefined';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,18 +241,50 @@ export default function LoginScreen() {
     if (isWeb && origin) return origin;
     return AuthSession.makeRedirectUri({ scheme: 'borgz' });
   }, []);
+
+  // Google Auth Request
+  const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: auth0ClientId || '',
+      redirectUri,
+      responseType: AuthSession.ResponseType.Token,
+      scopes: ['openid', 'profile', 'email'],
+      extraParams: {
+        ...(auth0Audience ? { audience: auth0Audience } : null),
+        connection: 'google-oauth2',
+        prompt: 'login',
+      },
+    },
+    discovery
+  );
+
+  // Apple Auth Request
+  const [appleRequest, appleResponse, promptAppleAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: auth0ClientId || '',
+      redirectUri,
+      responseType: AuthSession.ResponseType.Token,
+      scopes: ['openid', 'profile', 'email'],
+      extraParams: {
+        ...(auth0Audience ? { audience: auth0Audience } : null),
+        connection: 'apple',
+        prompt: 'login',
+      },
+    },
+    discovery
+  );
+
+  // Generic Auth0 (email/password or other)
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId: auth0ClientId || '',
       redirectUri,
       responseType: AuthSession.ResponseType.Token,
       scopes: ['openid', 'profile', 'email'],
-      // Force showing the Universal Login prompt instead of silently reusing an existing Auth0 SSO session.
-      // - prompt=login: always ask for credentials
-      // - prompt=select_account: show account chooser when possible
       extraParams: {
         ...(auth0Audience ? { audience: auth0Audience } : null),
         prompt: 'login',
+        ...(mode === 'signup' ? { screen_hint: 'signup' } : {}),
       },
     },
     discovery
@@ -70,17 +296,30 @@ export default function LoginScreen() {
     }
   }, [token, player, router]);
 
+  // Handle all auth responses
   useEffect(() => {
-    if (response?.type !== 'success') return;
-    const accessToken = (response.params as any)?.access_token as string | undefined;
-    if (!accessToken) return;
-    void loginWithAuth0AccessToken(accessToken);
-  }, [response, loginWithAuth0AccessToken]);
+    const responses = [googleResponse, appleResponse, response];
+    for (const res of responses) {
+      if (res?.type === 'success') {
+        const accessToken = (res.params as any)?.access_token as string | undefined;
+        if (accessToken) {
+          void loginWithAuth0AccessToken(accessToken);
+          return;
+        }
+      }
+    }
+  }, [googleResponse, appleResponse, response, loginWithAuth0AccessToken]);
 
   useEffect(() => {
-    const msg = explainAuth0Failure(response as any, { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience }, { redirectUri });
-    if (msg) setAuth0Error(msg);
-  }, [response, auth0Domain, auth0ClientId, auth0Audience, redirectUri]);
+    const responses = [googleResponse, appleResponse, response];
+    for (const res of responses) {
+      const msg = explainAuth0Failure(res as any, { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience }, { redirectUri });
+      if (msg) {
+        setAuth0Error(msg);
+        return;
+      }
+    }
+  }, [googleResponse, appleResponse, response, auth0Domain, auth0ClientId, auth0Audience, redirectUri]);
 
   useEffect(() => {
     if (!showSeedAuth) return;
@@ -96,177 +335,475 @@ export default function LoginScreen() {
   );
 
   if (!hasHydrated || loading) {
-    return <LoadingScreen backgroundColor="#fff" />;
+    return Platform.OS === 'web' 
+      ? <View style={styles.loadingContainer}><Text style={styles.loadingText}>Loading...</Text></View>
+      : <LoadingScreen backgroundColor="#fff" />;
   }
 
+  const isAuth0Ready = googleRequest && discovery && auth0Domain && auth0ClientId;
+
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Login</Text>
-      <Text style={styles.subtitle}>
-        {showSeedAuth ? 'Sign in with Auth0 (recommended) or use seed login (dev).' : 'Sign in with Auth0.'}
-      </Text>
-
-      {error ? (
-        <Pressable onPress={clearError}>
-          <Text style={styles.error}>{error} (tap to clear)</Text>
-        </Pressable>
-      ) : null}
-
-      {auth0Error ? (
-        <Pressable onPress={() => setAuth0Error(null)}>
-          <Text style={styles.error}>{auth0Error} (tap to clear)</Text>
-        </Pressable>
-      ) : null}
-
+    <View style={styles.container}>
+      {/* Animated background with slowly shifting colors */}
+      <AnimatedBackground />
+      
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Auth0</Text>
-        <Pressable
-          style={[styles.primaryButton, loading ? styles.buttonDisabled : null]}
-          disabled={loading || !request || !discovery || !auth0Domain || !auth0ClientId}
-          onPress={() => {
-            setAuth0Error(null);
-            void promptAsync();
-          }}
-        >
-          <Text style={styles.primaryButtonText}>
-            {auth0Domain && auth0ClientId ? 'Continue with Auth0' : 'Set Auth0 env vars to enable'}
-          </Text>
-        </Pressable>
+        {/* Logo */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logo}>borgz</Text>
+          <Text style={styles.tagline}>Play poker with friends</Text>
+        </View>
 
-        <Text style={[styles.metaText, { marginTop: 8 }]}>
-          Redirect URI: {redirectUri}
+        {/* Title */}
+        <Text style={styles.title}>
+          {mode === 'login' ? 'Welcome back' : 'Create your account'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {mode === 'login' 
+            ? 'Sign in to continue to borgz' 
+            : 'Get started with borgz today'}
         </Text>
 
-        {validateAuth0Config(
-          { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience },
-          { redirectUri }
-        ).map((issue, idx) => (
-          <Text key={idx} style={styles.metaText}>
-            {issue}
-          </Text>
-        ))}
+        {/* Error messages */}
+        {(error || auth0Error) && (
+          <Pressable 
+            onPress={() => { clearError(); setAuth0Error(null); }}
+            style={styles.errorContainer}
+          >
+            <Text style={styles.errorText}>{error || auth0Error}</Text>
+            <Text style={styles.errorDismiss}>Tap to dismiss</Text>
+          </Pressable>
+        )}
 
-        {showSeedAuth ? (
-          <>
-            <Text style={styles.sectionTitle}>Seed player</Text>
+        {/* Auth Buttons */}
+        <View style={styles.authButtons}>
+          {/* Google Button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.authButton,
+              styles.googleButton,
+              pressed && styles.authButtonPressed,
+              !isAuth0Ready && styles.authButtonDisabled,
+            ]}
+            disabled={!isAuth0Ready || loading}
+            onPress={() => {
+              setAuth0Error(null);
+              void promptGoogleAsync();
+            }}
+          >
+            <GoogleIcon />
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          </Pressable>
+
+          {/* Apple Button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.authButton,
+              styles.appleButton,
+              pressed && styles.authButtonPressed,
+              !isAuth0Ready && styles.authButtonDisabled,
+            ]}
+            disabled={!isAuth0Ready || loading}
+            onPress={() => {
+              setAuth0Error(null);
+              void promptAppleAsync();
+            }}
+          >
+            <AppleIcon />
+            <Text style={styles.appleButtonText}>Continue with Apple</Text>
+          </Pressable>
+
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Email Button (goes to Auth0 Universal Login) */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.authButton,
+              styles.emailButton,
+              pressed && styles.authButtonPressed,
+              !isAuth0Ready && styles.authButtonDisabled,
+            ]}
+            disabled={!isAuth0Ready || loading}
+            onPress={() => {
+              setAuth0Error(null);
+              void promptAsync();
+            }}
+          >
+            <EmailIcon />
+            <Text style={styles.emailButtonText}>Continue with Email</Text>
+          </Pressable>
+        </View>
+
+        {/* Toggle Login/Signup */}
+        <View style={styles.toggleContainer}>
+          <Text style={styles.toggleText}>
+            {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
+          </Text>
+          <Pressable onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+            <Text style={styles.toggleLink}>
+              {mode === 'login' ? 'Sign up' : 'Sign in'}
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Terms */}
+        <Text style={styles.terms}>
+          By continuing, you agree to our{' '}
+          <Text style={styles.termsLink}>Terms of Service</Text>
+          {' '}and{' '}
+          <Text style={styles.termsLink}>Privacy Policy</Text>
+        </Text>
+
+        {/* Dev Auth Toggle (only in dev) */}
+        {showSeedAuth && (
+          <Pressable 
+            style={styles.devToggle}
+            onPress={() => setShowDevAuth(!showDevAuth)}
+          >
+            <Text style={styles.devToggleText}>
+              {showDevAuth ? '▼ Hide dev options' : '▶ Dev options'}
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Dev Auth Section */}
+        {showSeedAuth && showDevAuth && (
+          <View style={styles.devSection}>
+            <Text style={styles.devTitle}>Development Login</Text>
+            
             {!seedLoaded ? (
               <Pressable
-                style={[styles.secondaryButton, loading ? styles.buttonDisabled : null]}
-                disabled={loading}
+                style={styles.devButton}
                 onPress={() => {
                   setSeedLoaded(true);
                   void fetchSeedPlayers();
                 }}
               >
-                <Text style={styles.secondaryButtonText}>{loading ? 'Loading…' : 'Load seed players'}</Text>
+                <Text style={styles.devButtonText}>Load seed players</Text>
               </Pressable>
-            ) : null}
-            <View style={styles.playerList}>
-              {seedPlayers.map((p) => {
-                const active = p.id === selectedId;
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => setSelectedId(p.id)}
-                    style={[styles.playerChip, active ? styles.playerChipActive : null]}
-                    disabled={loading}
-                  >
-                    <Text style={[styles.playerChipText, active ? styles.playerChipTextActive : null]}>
-                      {p.avatar ? `${p.avatar} ` : ''}
-                      {p.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            ) : (
+              <>
+                <View style={styles.playerList}>
+                  {seedPlayers.map((p) => {
+                    const active = p.id === selectedId;
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => setSelectedId(p.id)}
+                        style={[styles.playerChip, active && styles.playerChipActive]}
+                      >
+                        <Text style={[styles.playerChipText, active && styles.playerChipTextActive]}>
+                          {p.avatar ? `${p.avatar} ` : ''}{p.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            <Text style={styles.sectionTitle}>Seed password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Seed password"
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.input}
-            />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  style={styles.devInput}
+                  placeholderTextColor="#666"
+                />
 
-            <Pressable
-              style={[styles.primaryButton, loading ? styles.buttonDisabled : null]}
-              disabled={loading || !selectedId || !password}
-              onPress={() => {
-                if (!selectedId) return;
-                void login(selectedId, password);
-              }}
-            >
-              <Text style={styles.primaryButtonText}>{loading ? 'Logging in…' : 'Login'}</Text>
-            </Pressable>
-
-            <View style={styles.meta}>
-              <Text style={styles.metaText}>
-                {selected ? `Selected: ${selected.name} (${selected.id})` : seedLoaded ? 'No seed players loaded.' : 'Seed players not loaded.'}
-              </Text>
-              <Text style={styles.metaText}>Default seed password: borgz</Text>
-            </View>
-          </>
-        ) : null}
+                <Pressable
+                  style={[styles.devButton, (!selectedId || !password) && styles.devButtonDisabled]}
+                  disabled={!selectedId || !password}
+                  onPress={() => {
+                    if (selectedId) void login(selectedId, password);
+                  }}
+                >
+                  <Text style={styles.devButtonText}>Login as {selected?.name || 'player'}</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
       </View>
-    </ScrollView>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>© 2026 borgz</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 16, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '800', marginBottom: 6 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 16, textAlign: 'center' },
-  error: { color: '#b00020', marginBottom: 12, textAlign: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f0fdf4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    overflow: 'hidden',
+  },
+  backgroundGlow: {
+    position: 'absolute',
+    top: '10%',
+    left: '20%',
+    width: 500,
+    height: 500,
+    borderRadius: 250,
+  },
+  backgroundGlowSecondary: {
+    position: 'absolute',
+    bottom: '10%',
+    right: '20%',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#fafafa',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
   card: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 32,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 24,
+      elevation: 8,
+    }),
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#111',
+    letterSpacing: -1,
+  },
+  tagline: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 4,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  errorContainer: {
+    backgroundColor: '#fef2f2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  errorDismiss: {
+    color: '#dc2626',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.7,
+  },
+  authButtons: {
+    gap: 12,
+  },
+  authButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 12,
+  },
+  authButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  authButtonDisabled: {
+    opacity: 0.5,
+  },
+  googleButton: {
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e5e5e5',
-    borderRadius: 12,
-    padding: 12,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '700', marginTop: 10, marginBottom: 8 },
-  playerList: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  playerChip: {
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  appleButton: {
+    backgroundColor: '#000',
+  },
+  appleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e5e5',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 13,
+    color: '#999',
+  },
+  emailButton: {
+    backgroundColor: '#f5f5f5',
     borderWidth: 1,
-    borderColor: '#111',
-    borderRadius: 999,
+    borderColor: '#e5e5e5',
+  },
+  emailButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 6,
+  },
+  toggleText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  toggleLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  terms: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 20,
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: '#666',
+    textDecorationLine: 'underline',
+  },
+  devToggle: {
+    marginTop: 24,
     paddingVertical: 8,
-    paddingHorizontal: 12,
   },
-  playerChipActive: { backgroundColor: '#111' },
-  playerChipText: { color: '#111', fontWeight: '700' },
-  playerChipTextActive: { color: '#fff' },
-  input: {
+  devToggleText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+  },
+  devSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  devTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 12,
+  },
+  playerList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  playerChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
+    borderColor: '#e5e5e5',
+  },
+  playerChipActive: {
+    backgroundColor: '#22c55e',
+    borderColor: '#22c55e',
+  },
+  playerChipText: {
+    fontSize: 13,
+    color: '#333',
+  },
+  playerChipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  devInput: {
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    width: '100%',
-    marginBottom: 10,
+    fontSize: 14,
+    marginBottom: 12,
+    backgroundColor: '#fafafa',
+    color: '#333',
   },
-  primaryButton: {
-    backgroundColor: '#111',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  buttonDisabled: { opacity: 0.6 },
-  primaryButtonText: { color: '#fff', fontWeight: '800' },
-  secondaryButton: {
+  devButton: {
+    backgroundColor: '#333',
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#111',
-    marginBottom: 10,
   },
-  secondaryButtonText: { color: '#111', fontWeight: '800' },
-  meta: { marginTop: 12, gap: 4 },
-  metaText: { fontSize: 12, color: '#666' },
+  devButtonDisabled: {
+    opacity: 0.5,
+  },
+  devButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 20,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#999',
+  },
 });
-
