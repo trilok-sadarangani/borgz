@@ -1,3 +1,6 @@
+# ===================
+# PRODUCTION SERVICES
+# ===================
 services:
   - type: web
     name: borgz-backend
@@ -45,8 +48,61 @@ services:
       - key: EXPO_PUBLIC_AUTH0_AUDIENCE
         value: api.borgz.com
 
+  # =================
+  # STAGING SERVICES
+  # =================
+  - type: web
+    name: borgz-backend-staging
+    env: docker
+    rootDir: .
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: ENABLE_DB_PERSISTENCE
+        value: "true"
+      - key: DISABLE_SEED_AUTH
+        value: "true"
+      - key: CORS_ORIGIN
+        value: https://borgz-web-staging.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: borgz-db-staging
+          property: connectionString
+      - key: AUTH0_DOMAIN
+        value: dev-hl2hhkyfntxf14em.us.auth0.com
+      - key: AUTH0_AUDIENCE
+        value: api.borgz.com
+      - key: AUTH0_ISSUER
+        value: https://dev-hl2hhkyfntxf14em.us.auth0.com/
+
+  - type: web
+    name: borgz-web-staging
+    runtime: static
+    rootDir: client
+    autoDeploy: true
+    buildCommand: npm ci && npx expo export --platform web
+    staticPublishPath: dist
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://borgz-backend-staging.onrender.com
+      - key: EXPO_PUBLIC_AUTH0_DOMAIN
+        value: dev-hl2hhkyfntxf14em.us.auth0.com
+      - key: EXPO_PUBLIC_AUTH0_CLIENT_ID
+        value: aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG
+      - key: EXPO_PUBLIC_AUTH0_AUDIENCE
+        value: api.borgz.com
+
+# =========
+# DATABASES
+# =========
 databases:
   - name: borgz-db
     plan: basic-256mb
 
-
+  - name: borgz-db-staging
+    plan: basic-256mb
