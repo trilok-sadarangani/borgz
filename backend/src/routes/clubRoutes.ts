@@ -37,11 +37,17 @@ function requireClubMembership(clubId: string, playerId: string): Club & { invit
 router.get('/', requireAuth, (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:GET /api/clubs',message:'Fetching clubs for player',data:{playerId,allClubsCount:clubService.listClubs().length,allClubIds:clubService.listClubs().map(c=>c.id),enableDbPersistence:process.env.ENABLE_DB_PERSISTENCE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3'})}).catch(()=>{});
+    // #endregion
     const clubs = clubService
       .listClubs()
       .filter((c) => (c.memberIds || []).includes(playerId))
       .map((c) => sanitizeClubForMember(c));
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:GET /api/clubs result',message:'Filtered clubs for player',data:{playerId,filteredClubsCount:clubs.length,filteredClubIds:clubs.map(c=>c.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'})}).catch(()=>{});
+    // #endregion
     return res.json({ success: true, clubs, count: clubs.length });
   } catch (error) {
     return res.status(500).json({
@@ -60,6 +66,10 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
     const playerId = getAuthedPlayerId(req);
     const { name, description } = req.body as { name?: string; description?: string };
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:POST /api/clubs',message:'Creating club',data:{playerId,name,enableDbPersistence:process.env.ENABLE_DB_PERSISTENCE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H3'})}).catch(()=>{});
+    // #endregion
+
     const trimmedName = (name || '').trim();
     if (!trimmedName) {
       return res.status(400).json({ success: false, error: 'name is required' });
@@ -73,8 +83,15 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
     }
 
     const club = clubService.createClub(playerId, trimmedName, trimmedDesc);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:POST /api/clubs created',message:'Club created in memory',data:{clubId:club.id,playerId,inviteCode:club.inviteCode},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     // Best-effort DB persistence for Prisma visibility (behind ENABLE_DB_PERSISTENCE=true).
-    void dbPersistenceService.ensureClub(club.id).catch(() => {});
+    void dbPersistenceService.ensureClub(club.id).catch((err) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:POST /api/clubs db error',message:'DB persistence failed',data:{clubId:club.id,error:String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
+    });
     return res.status(201).json({ success: true, club: sanitizeClubForMember(club) });
   } catch (error) {
     return res.status(400).json({

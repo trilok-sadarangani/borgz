@@ -1,8 +1,0 @@
-{"location":"login.tsx:LoginScreen:render","message":"Rendering main login UI","data":{"mode":"login","showDevAuth":false},"timestamp":1768060307842,"sessionId":"debug-session","hypothesisId":"A,D"}
-{"location":"login.tsx:AnimatedBackground:web-branch","message":"Rendering web version with style/div","data":{"isWeb":true},"timestamp":1768060307843,"sessionId":"debug-session","hypothesisId":"B,C"}
-{"location":"login.tsx:LoginScreen:loading","message":"Showing loading state","data":{"hasHydrated":true,"loading":true},"timestamp":1768060307846,"sessionId":"debug-session","hypothesisId":"D"}
-{"location":"login.tsx:LoginScreen","message":"LoginScreen render state","data":{"hasHydrated":true,"loading":true,"platformOS":"web"},"timestamp":1768060307847,"sessionId":"debug-session","hypothesisId":"D"}
-{"location":"login.tsx:LoginScreen:render","message":"Rendering main login UI","data":{"mode":"login","showDevAuth":false},"timestamp":1768060308433,"sessionId":"debug-session","hypothesisId":"A,D"}
-{"location":"login.tsx:AnimatedBackground:web-branch","message":"Rendering web version with style/div","data":{"isWeb":true},"timestamp":1768060308434,"sessionId":"debug-session","hypothesisId":"B,C"}
-{"location":"login.tsx:AnimatedBackground","message":"AnimatedBackground mounted","data":{"platformOS":"web"},"timestamp":1768060308438,"sessionId":"debug-session","hypothesisId":"A,B"}
-{"location":"login.tsx:LoginScreen","message":"LoginScreen render state","data":{"hasHydrated":true,"loading":false,"platformOS":"web"},"timestamp":1768060308438,"sessionId":"debug-session","hypothesisId":"D"}

@@ -31,11 +31,17 @@ export const useClubStore = create<ClubState>((set, get) => ({
   error: null,
 
   fetchMyClubs: async (token: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubStore.ts:fetchMyClubs',message:'Client fetching clubs',data:{tokenPrefix:token?.substring(0,20)+'...'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
     try {
       set({ loading: true, error: null });
       const res = await apiGetWithHeaders<ListClubsResponse>('/api/clubs', {
         Authorization: `Bearer ${token}`,
       });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubStore.ts:fetchMyClubs result',message:'Client received clubs',data:{success:res.success,clubCount:res.success?res.clubs.length:0,error:res.success?null:res.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H5'})}).catch(()=>{});
+      // #endregion
       if (!res.success) {
         const errorMsg = res.error || 'Failed to load clubs';
         // Check for token expiration
