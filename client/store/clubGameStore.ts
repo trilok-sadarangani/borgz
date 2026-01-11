@@ -28,7 +28,6 @@ interface ClubGameState {
     clubId: string,
     settings?: Partial<GameSettings>
   ) => Promise<{ gameId: string; code: string } | null>;
-  clearError: () => void;
 }
 
 export const useClubGameStore = create<ClubGameState>((set, get) => ({
@@ -79,8 +78,4 @@ export const useClubGameStore = create<ClubGameState>((set, get) => ({
       return null;
     }
   },
-
-  clearError: () => set({ error: null }),
 }));
-
-

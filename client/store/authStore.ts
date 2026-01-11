@@ -157,4 +157,3 @@ function createAuthStore(
 
 export const useAuthStore = createAuthStore();
 export const createAuthStoreForTests = createAuthStore;
-

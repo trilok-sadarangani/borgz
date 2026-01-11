@@ -7,6 +7,7 @@ import * as AuthSession from 'expo-auth-session';
 import { getAuth0Config } from '../services/runtimeConfig';
 import { explainAuth0Failure } from '../../shared/auth0Diagnostics';
 import { LoadingScreen } from '../components/LoadingScreen';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -307,7 +308,11 @@ export default function LoginScreen() {
 
   if (!hasHydrated || loading) {
     return Platform.OS === 'web' 
-      ? <View style={styles.loadingContainer}><Text style={styles.loadingText}>Loading...</Text></View>
+      ? (
+        <View style={styles.loadingContainer}>
+          <LoadingSpinner size="large" label="Loading..." light={false} />
+        </View>
+      )
       : <LoadingScreen backgroundColor="#fff" />;
   }
 

@@ -8,6 +8,7 @@ import { useClubGameStore } from '../../store/clubGameStore';
 import { useGameStore } from '../../store/gameStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { LoadingScreen } from '../../components/LoadingScreen';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { GameSettingsForm } from '../../components/GameSettingsForm';
 import { GameSettings } from '../../../shared/types/game.types';
 
@@ -139,8 +140,8 @@ export default function ClubsScreen() {
 
   if (loading && clubs.length === 0) {
     return isWeb ? (
-      <View style={[s.container, { flex: 1 }]}>
-        <Text style={s.subtitle}>Loading...</Text>
+      <View style={[s.container, { flex: 1, justifyContent: 'center' }]}>
+        <LoadingSpinner size="large" label="Loading clubs..." light />
       </View>
     ) : (
       <LoadingScreen backgroundColor="#fff" />

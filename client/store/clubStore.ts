@@ -23,7 +23,6 @@ interface ClubState {
   fetchClub: (token: string, clubId: string) => Promise<Club | null>;
   createClub: (token: string, name: string, description?: string) => Promise<Club | null>;
   joinClub: (token: string, inviteCode: string) => Promise<Club | null>;
-  clearError: () => void;
 }
 
 export const useClubStore = create<ClubState>((set, get) => ({
@@ -125,8 +124,4 @@ export const useClubStore = create<ClubState>((set, get) => ({
       return null;
     }
   },
-
-  clearError: () => set({ error: null }),
 }));
-
-

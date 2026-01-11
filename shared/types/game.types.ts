@@ -106,3 +106,12 @@ export interface GameState {
   updatedAt: number;
 }
 
+// Chat types
+export interface ChatMessage {
+  id: string;
+  gameCode: string;
+  playerId: string;
+  playerName: string;
+  message: string;
+  timestamp: number;
+}

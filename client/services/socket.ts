@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { GameState, PlayerAction } from '../../shared/types/game.types';
+import { GameState, PlayerAction, ChatMessage } from '../../shared/types/game.types';
 import { getApiBaseUrl } from './api';
 
 export type SocketErrorPayload = { message: string };
@@ -94,36 +94,14 @@ export function onSocketError(handler: (err: SocketErrorPayload) => void): () =>
   return () => s.off('error', handler);
 }
 
-export interface PlayerJoinedPayload {
-  playerId: string;
-  state: GameState;
-}
-
-export interface PlayerLeftPayload {
-  playerId: string;
-}
-
-export function onPlayerJoined(handler: (payload: PlayerJoinedPayload) => void): () => void {
+// Chat functions
+export function sendChatMessage(message: string): void {
   const s = getSocket();
-  s.on('player-joined', handler);
-  return () => s.off('player-joined', handler);
+  s.emit('send-chat', { message });
 }
 
-export function onPlayerLeft(handler: (payload: PlayerLeftPayload) => void): () => void {
+export function onChatMessage(handler: (message: ChatMessage) => void): () => void {
   const s = getSocket();
-  s.on('player-left', handler);
-  return () => s.off('player-left', handler);
+  s.on('chat-message', handler);
+  return () => s.off('chat-message', handler);
 }
-
-export function onConnect(handler: () => void): () => void {
-  const s = getSocket();
-  s.on('connect', handler);
-  return () => s.off('connect', handler);
-}
-
-export function onDisconnect(handler: () => void): () => void {
-  const s = getSocket();
-  s.on('disconnect', handler);
-  return () => s.off('disconnect', handler);
-}
-

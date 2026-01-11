@@ -16,29 +16,60 @@ function suitSymbol(suit: CardSuit): string {
 }
 
 function suitColor(suit: CardSuit): string {
-  return suit === 'hearts' || suit === 'diamonds' ? '#b00020' : '#111';
+  return suit === 'hearts' || suit === 'diamonds' ? '#dc2626' : '#1f2937';
 }
 
 export function PlayingCard(props: {
   suit: CardSuit;
   value: string;
   style?: StyleProp<ViewStyle>;
+  size?: 'small' | 'medium' | 'large';
 }) {
   const color = suitColor(props.suit);
   const symbol = suitSymbol(props.suit);
+  const size = props.size || 'medium';
+
+  // Dynamic sizing based on prop
+  const dimensions = {
+    small: { width: 40, height: 56, borderRadius: 6 },
+    medium: { width: 60, height: 84, borderRadius: 8 },
+    large: { width: 80, height: 112, borderRadius: 10 },
+  }[size];
+
+  const fontSize = {
+    small: { value: 11, suit: 10, center: 22, cornerTop: 4, cornerLeft: 4 },
+    medium: { value: 14, suit: 12, center: 32, cornerTop: 6, cornerLeft: 6 },
+    large: { value: 16, suit: 14, center: 44, cornerTop: 8, cornerLeft: 8 },
+  }[size];
 
   return (
-    <View style={[styles.card, props.style]}>
-      <View style={styles.corner}>
-        <Text style={[styles.value, { color }]}>{props.value}</Text>
-        <Text style={[styles.suit, { color }]}>{symbol}</Text>
+    <View
+      style={[
+        styles.card,
+        {
+          width: dimensions.width,
+          height: dimensions.height,
+          borderRadius: dimensions.borderRadius,
+        },
+        props.style,
+      ]}
+    >
+      <View style={[styles.corner, { top: fontSize.cornerTop, left: fontSize.cornerLeft }]}>
+        <Text style={[styles.value, { color, fontSize: fontSize.value }]}>{props.value}</Text>
+        <Text style={[styles.suit, { color, fontSize: fontSize.suit }]}>{symbol}</Text>
       </View>
 
-      <Text style={[styles.centerSuit, { color }]}>{symbol}</Text>
+      <Text style={[styles.centerSuit, { color, fontSize: fontSize.center }]}>{symbol}</Text>
 
-      <View style={[styles.corner, styles.cornerBR]}>
-        <Text style={[styles.value, { color }]}>{props.value}</Text>
-        <Text style={[styles.suit, { color }]}>{symbol}</Text>
+      <View
+        style={[
+          styles.corner,
+          styles.cornerBR,
+          { bottom: fontSize.cornerTop, right: fontSize.cornerLeft },
+        ]}
+      >
+        <Text style={[styles.value, { color, fontSize: fontSize.value }]}>{props.value}</Text>
+        <Text style={[styles.suit, { color, fontSize: fontSize.suit }]}>{symbol}</Text>
       </View>
     </View>
   );
@@ -46,32 +77,26 @@ export function PlayingCard(props: {
 
 const styles = StyleSheet.create({
   card: {
-    width: 92,
-    height: 128,
-    borderRadius: 12,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   corner: {
     position: 'absolute',
-    top: 10,
-    left: 10,
     alignItems: 'center',
   },
   cornerBR: {
     top: undefined,
     left: undefined,
-    right: 10,
-    bottom: 10,
     transform: [{ rotate: '180deg' }],
   },
-  value: { fontSize: 16, fontWeight: '900', lineHeight: 18 },
-  suit: { fontSize: 14, fontWeight: '900', lineHeight: 16 },
+  value: { fontWeight: '900', lineHeight: undefined },
+  suit: { fontWeight: '900', lineHeight: undefined, marginTop: -2 },
   centerSuit: {
     position: 'absolute',
     left: 0,
@@ -80,10 +105,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     textAlign: 'center',
     textAlignVertical: 'center',
-    fontSize: 44,
     fontWeight: '800',
-    opacity: 0.22,
+    opacity: 0.15,
   },
 });
-
 

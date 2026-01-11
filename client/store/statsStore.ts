@@ -108,7 +108,6 @@ interface StatsState {
   lastQuery: StatsQuery | null;
 
   fetchMyStats: (token: string, query: StatsQuery) => Promise<void>;
-  clearError: () => void;
 }
 
 export const useStatsStore = create<StatsState>((set) => ({
@@ -155,8 +154,4 @@ export const useStatsStore = create<StatsState>((set) => ({
       set({ loading: false, error: msg });
     }
   },
-
-  clearError: () => set({ error: null }),
 }));
-
-

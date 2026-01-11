@@ -62,8 +62,6 @@ interface HistoryState {
 
   fetchMyHistory: (token: string) => Promise<void>;
   fetchClubHistory: (token: string, clubId: string) => Promise<void>;
-  clearProfileError: () => void;
-  clearClubError: (clubId: string) => void;
 }
 
 export const useHistoryStore = create<HistoryState>((set, get) => ({
@@ -132,10 +130,4 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       });
     }
   },
-
-  clearProfileError: () => set({ profileError: null }),
-  clearClubError: (clubId: string) =>
-    set({ clubErrorByClubId: { ...get().clubErrorByClubId, [clubId]: null } }),
 }));
-
-

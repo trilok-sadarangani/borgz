@@ -79,4 +79,3 @@ export function getAuth0Config(): Auth0RuntimeConfig {
   };
 }
 
-

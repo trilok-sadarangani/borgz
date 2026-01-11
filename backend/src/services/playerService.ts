@@ -60,4 +60,3 @@ export class PlayerService {
 
 // Singleton instance
 export const playerService = new PlayerService();
-
