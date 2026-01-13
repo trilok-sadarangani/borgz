@@ -42,7 +42,9 @@ app.get('/health', (_req, res) => {
 
 // Diagnostic endpoint to check SPA status
 app.get('/health/spa', (_req, res) => {
-  const spaClientDistPath = path.join(__dirname, '..', 'client-dist');
+  // In Docker: __dirname is /app/backend/dist/backend/src, client-dist is at /app/backend/client-dist
+  // Go up 3 levels from src -> backend -> dist -> /app/backend, then into client-dist
+  const spaClientDistPath = path.join(__dirname, '..', '..', '..', 'client-dist');
   const spaIndexHtmlPath = path.join(spaClientDistPath, 'index.html');
   const clientDistExists = fs.existsSync(spaClientDistPath);
   const indexHtmlExists = fs.existsSync(spaIndexHtmlPath);
@@ -69,7 +71,9 @@ app.use('/api/stats', statsRoutes);
 // ============================================================================
 // In production, serve the built Expo web client from the 'client-dist' folder.
 // This enables a single deployment that handles both API and frontend.
-const clientDistPath = path.join(__dirname, '..', 'client-dist');
+// In Docker: __dirname is /app/backend/dist/backend/src, client-dist is at /app/backend/client-dist
+// Go up 3 levels from src -> backend -> dist -> /app/backend, then into client-dist
+const clientDistPath = path.join(__dirname, '..', '..', '..', 'client-dist');
 const indexHtmlPath = path.join(clientDistPath, 'index.html');
 const clientDistExists = fs.existsSync(clientDistPath);
 const indexHtmlExists = fs.existsSync(indexHtmlPath);
@@ -90,11 +94,17 @@ if (clientDistExists && indexHtmlExists) {
 
   // SPA fallback: serve index.html for all non-API routes
   // This allows client-side routing to work (e.g., /clubs, /login, etc.)
-  app.get('*', (req, res) => {
-    // Don't serve index.html for API routes or socket.io
-    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
-      return res.status(404).json({ error: 'Not found' });
+  // Note: Express 5 requires named params for wildcards, using middleware instead
+  app.use((req, res, next) => {
+    // Skip API routes, socket.io, and health checks
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/socket.io') ||
+      req.path.startsWith('/health')
+    ) {
+      return next();
     }
+    // Serve index.html for all other routes (SPA client-side routing)
     return res.sendFile(indexHtmlPath);
   });
 } else {
@@ -107,9 +117,13 @@ if (clientDistExists && indexHtmlExists) {
   });
 
   // Add a fallback for non-API routes when client isn't available
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
-      return res.status(404).json({ error: 'Not found' });
+  app.use((req, res, next) => {
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/socket.io') ||
+      req.path.startsWith('/health')
+    ) {
+      return next();
     }
     return res.status(404).json({
       error: 'Not found',
