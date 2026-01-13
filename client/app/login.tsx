@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, Animated, Easing } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
@@ -208,7 +208,6 @@ const iconStyles = StyleSheet.create({
 });
 
 export default function LoginScreen() {
-  const router = useRouter();
   const { token, player, loading, error, loginWithAuth0AccessToken, clearError } = useAuthStore();
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
 
@@ -275,11 +274,7 @@ export default function LoginScreen() {
     discovery
   );
 
-  useEffect(() => {
-    if (token && player) {
-      router.replace('/(tabs)');
-    }
-  }, [token, player, router]);
+  // If already authenticated, redirect to main app (handled below with <Redirect>)
 
   // Handle all auth responses
   useEffect(() => {
@@ -314,6 +309,11 @@ export default function LoginScreen() {
         </View>
       )
       : <LoadingScreen backgroundColor="#fff" />;
+  }
+
+  // If already authenticated, redirect to main app
+  if (token && player) {
+    return <Redirect href="/(tabs)" />;
   }
 
   const isAuth0Ready = googleRequest && discovery && auth0Domain && auth0ClientId;
