@@ -152,8 +152,7 @@ export default function GameScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
+    <View style={styles.gameContainer}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -163,20 +162,21 @@ export default function GameScreen() {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          {error ? (
+            <Pressable onPress={clearError} style={styles.errorBadge}>
+              <Text style={styles.errorBadgeText}>Error</Text>
+            </Pressable>
+          ) : null}
           <Pressable style={styles.leaveButton} onPress={() => leaveGame()}>
             <Text style={styles.leaveButtonText}>Leave</Text>
           </Pressable>
         </View>
       </View>
 
-      {error ? (
-        <Pressable onPress={clearError} style={styles.errorContainer}>
-          <Text style={styles.error}>{error} (tap to clear)</Text>
-        </Pressable>
-      ) : null}
-
-      {/* Poker Table */}
-      <View style={[styles.tableContainer, { width: tableWidth, height: tableHeight }]}>
+      {/* Main game area - table fills available space */}
+      <View style={styles.tableArea}>
+        {/* Poker Table */}
+        <View style={styles.tableContainer}>
         {/* Table felt (oval) */}
         <View style={styles.tableFelt}>
           {/* Pot display */}
@@ -273,217 +273,161 @@ export default function GameScreen() {
         })}
       </View>
 
-      {/* Your cards section */}
-      <View style={styles.myCardsContainer}>
-        <Text style={styles.myCardsLabel}>Your Cards</Text>
-        <View style={styles.myCards}>
-          {me?.cards?.length ? (
-            me.cards.map((card, idx) => (
-              <PlayingCard
-                key={idx}
-                suit={suitFromChar(card.suit)}
-                value={card.rank}
-                style={styles.myCard}
-              />
-            ))
-          ) : (
-            <Text style={styles.noCardsText}>Hidden</Text>
-          )}
-        </View>
       </View>
 
-      {/* Action buttons */}
-      <View style={styles.actionsContainer}>
-        {isMyTurn ? (
-          <View style={styles.turnIndicator}>
-            <Text style={styles.turnIndicatorText}>YOUR TURN</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.actionButton, styles.foldButton]}
-            onPress={() => act('fold')}
-          >
-            <Text style={styles.actionButtonText}>Fold</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionButton, styles.checkButton]}
-            onPress={() => act('check')}
-          >
-            <Text style={styles.actionButtonText}>Check</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionButton, styles.callButton]}
-            onPress={() => act('call')}
-          >
-            <Text style={styles.actionButtonText}>Call</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionButton, styles.allInButton]}
-            onPress={() => act('all-in')}
-          >
-            <Text style={styles.actionButtonText}>All-in</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.raiseRow}>
-          <TextInput
-            value={raiseAmount}
-            onChangeText={setRaiseAmount}
-            placeholder="Amount"
-            placeholderTextColor="rgba(255,255,255,0.4)"
-            keyboardType="numeric"
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={() => Keyboard.dismiss()}
-            style={styles.raiseInput}
-          />
-          <Pressable
-            style={[styles.actionButton, styles.raiseButton]}
-            onPress={() => {
-              Keyboard.dismiss();
-              const amt = Number(raiseAmount);
-              if (!Number.isFinite(amt)) return;
-              act('raise', amt);
-            }}
-          >
-            <Text style={styles.actionButtonText}>Raise</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* Host controls */}
-      {isHost ? (
-        <View style={styles.hostControls}>
-          <Text style={styles.hostLabel}>Host Controls</Text>
-          <View style={styles.hostButtonRow}>
-            {game.phase === 'waiting' ? (
-              <Pressable
-                style={styles.hostButton}
-                onPress={() => startGame(gameCode, player.id)}
-              >
-                <Text style={styles.hostButtonText}>Start Game</Text>
-              </Pressable>
-            ) : null}
-            {game.phase === 'finished' && game.lastHandResult ? (
-              <Pressable
-                style={styles.hostButton}
-                onPress={() => nextHand(gameCode, player.id)}
-              >
-                <Text style={styles.hostButtonText}>Next Hand</Text>
-              </Pressable>
-            ) : null}
-            <Pressable style={styles.endGameButton} onPress={() => endGame()}>
-              <Text style={styles.endGameButtonText}>End Game</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Last hand result */}
-      {game.phase === 'finished' && game.lastHandResult ? (
-        <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>Hand Complete</Text>
-          <Text style={styles.resultText}>
-            {game.lastHandResult.winners.map((w) => `${w.playerId} won ${w.amount}`).join(', ')}
-          </Text>
-          <Text style={styles.resultReason}>
-            Pot: {game.lastHandResult.pot} • {game.lastHandResult.reason}
-          </Text>
-        </View>
-      ) : null}
-
-      {/* Rebuy section */}
-      {me && me.stack === 0 ? (
-        <View style={styles.rebuyCard}>
-          <Text style={styles.rebuyTitle}>Out of chips!</Text>
-          <Text style={styles.rebuyText}>Add chips to continue playing.</Text>
-          <View style={styles.rebuyRow}>
-            <TextInput
-              value={rebuyAmount}
-              onChangeText={setRebuyAmount}
-              placeholder="Amount"
-              placeholderTextColor="rgba(255,255,255,0.4)"
-              keyboardType="numeric"
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={() => Keyboard.dismiss()}
-              style={styles.rebuyInput}
-            />
-            <Pressable
-              style={styles.rebuyButton}
-              onPress={() => {
-                Keyboard.dismiss();
-                const amt = Number(rebuyAmount);
-                if (!Number.isFinite(amt) || amt <= 0) return;
-                rebuy(amt);
-              }}
-            >
-              <Text style={styles.rebuyButtonText}>Add Chips</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      {/* History toggle */}
-      <Pressable style={styles.historyToggle} onPress={() => setShowHistory(!showHistory)}>
-        <Text style={styles.historyToggleText}>
-          {showHistory ? 'Hide History' : 'Show History'}
-        </Text>
-      </Pressable>
-
-      {showHistory ? (
-        <View style={styles.historyCard}>
-          <Text style={styles.historyTitle}>Recent Actions</Text>
-          {game.history.length ? (
-            game.history
-              .slice(-10)
-              .reverse()
-              .map((h, idx) => (
-                <Text key={`${h.timestamp}-${h.playerId}-${idx}`} style={styles.historyLine}>
-                  {new Date(h.timestamp).toLocaleTimeString()} • {h.playerId}: {h.action}
-                  {h.amount !== undefined ? ` ${h.amount}` : ''}
-                </Text>
+      {/* Bottom section: Your cards + Actions */}
+      <View style={styles.bottomSection}>
+        {/* Your cards - positioned on left side */}
+        <View style={styles.myCardsContainer}>
+          <Text style={styles.myCardsLabel}>Your Cards</Text>
+          <View style={styles.myCards}>
+            {me?.cards?.length ? (
+              me.cards.map((card, idx) => (
+                <PlayingCard
+                  key={idx}
+                  suit={suitFromChar(card.suit)}
+                  value={card.rank}
+                  style={styles.myCard}
+                />
               ))
-          ) : (
-            <Text style={styles.historyLine}>No actions yet</Text>
-          )}
+            ) : (
+              <Text style={styles.noCardsText}>Hidden</Text>
+            )}
+          </View>
         </View>
-      ) : null}
 
-      {/* Game info */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Game Settings</Text>
-        <Text style={styles.infoText}>
-          Blinds: {game.settings.smallBlind}/{game.settings.bigBlind} • Stack:{' '}
-          {game.settings.startingStack} • Max: {game.settings.maxPlayers}
-        </Text>
-        {game.settings.turnTimerSeconds ? (
-          <Text style={styles.infoText}>Turn timer: {game.settings.turnTimerSeconds}s</Text>
-        ) : null}
-        {game.settings.ante && game.settings.ante.type !== 'none' ? (
-          <Text style={styles.infoText}>
-            Ante: {game.settings.ante.type} {game.settings.ante.amount}
-          </Text>
-        ) : null}
+        {/* Action buttons */}
+        <View style={styles.actionsContainer}>
+          {isMyTurn ? (
+            <View style={styles.turnIndicator}>
+              <Text style={styles.turnIndicatorText}>YOUR TURN</Text>
+            </View>
+          ) : null}
+
+          {/* Result overlay */}
+          {game.phase === 'finished' && game.lastHandResult ? (
+            <View style={styles.resultOverlay}>
+              <Text style={styles.resultText}>
+                {game.lastHandResult.winners.map((w) => `${w.playerId} won ${w.amount}`).join(' | ')}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.actionButton, styles.foldButton]}
+              onPress={() => act('fold')}
+            >
+              <Text style={styles.actionButtonText}>Fold</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.checkButton]}
+              onPress={() => act('check')}
+            >
+              <Text style={styles.actionButtonText}>Check</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.callButton]}
+              onPress={() => act('call')}
+            >
+              <Text style={styles.actionButtonText}>Call</Text>
+            </Pressable>
+            <View style={styles.raiseGroup}>
+              <TextInput
+                value={raiseAmount}
+                onChangeText={setRaiseAmount}
+                placeholder="Amt"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                keyboardType="numeric"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={() => Keyboard.dismiss()}
+                style={styles.raiseInput}
+              />
+              <Pressable
+                style={[styles.actionButton, styles.raiseButton]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  const amt = Number(raiseAmount);
+                  if (!Number.isFinite(amt)) return;
+                  act('raise', amt);
+                }}
+              >
+                <Text style={styles.actionButtonText}>Raise</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              style={[styles.actionButton, styles.allInButton]}
+              onPress={() => act('all-in')}
+            >
+              <Text style={styles.actionButtonText}>All-in</Text>
+            </Pressable>
+          </View>
+
+          {/* Host controls inline */}
+          {isHost ? (
+            <View style={styles.hostRow}>
+              {game.phase === 'waiting' ? (
+                <Pressable
+                  style={styles.hostButton}
+                  onPress={() => startGame(gameCode, player.id)}
+                >
+                  <Text style={styles.hostButtonText}>Start</Text>
+                </Pressable>
+              ) : null}
+              {game.phase === 'finished' && game.lastHandResult ? (
+                <Pressable
+                  style={styles.hostButton}
+                  onPress={() => nextHand(gameCode, player.id)}
+                >
+                  <Text style={styles.hostButtonText}>Next Hand</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.endGameButton} onPress={() => endGame()}>
+                <Text style={styles.endGameButtonText}>End</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* Rebuy inline if needed */}
+          {me && me.stack === 0 ? (
+            <View style={styles.rebuyRow}>
+              <Text style={styles.rebuyText}>Out of chips!</Text>
+              <TextInput
+                value={rebuyAmount}
+                onChangeText={setRebuyAmount}
+                placeholder="Amount"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                keyboardType="numeric"
+                style={styles.rebuyInput}
+              />
+              <Pressable
+                style={styles.rebuyButton}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  const amt = Number(rebuyAmount);
+                  if (!Number.isFinite(amt) || amt <= 0) return;
+                  rebuy(amt);
+                }}
+              >
+                <Text style={styles.rebuyButtonText}>Rebuy</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
       </View>
-    </ScrollView>
-    <GameChat gameCode={gameCode} />
+
+      <GameChat gameCode={gameCode} />
     </View>
   );
 }
 
-// Web styles - dark poker theme
+// Web styles - dark poker theme (full viewport, no scroll)
 const webStyles = StyleSheet.create({
-  scrollContainer: {
+  gameContainer: {
     flex: 1,
     backgroundColor: '#1a1d21',
-  },
-  contentContainer: {
-    alignItems: 'center',
-    padding: 24,
-    paddingBottom: 48,
+    overflow: 'hidden',
   },
   container: {
     flex: 1,
@@ -491,6 +435,23 @@ const webStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+  },
+  tableArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  bottomSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    paddingTop: 8,
+    gap: 20,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   title: {
     fontSize: 32,
@@ -503,19 +464,36 @@ const webStyles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
   header: {
-    width: '100%',
-    maxWidth: 900,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   headerLeft: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   headerRight: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+  },
+  errorBadge: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  errorBadgeText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '700',
   },
   gameCode: {
     fontSize: 24,
@@ -540,23 +518,19 @@ const webStyles = StyleSheet.create({
     fontWeight: '700',
   },
   errorContainer: {
-    width: '100%',
-    maxWidth: 900,
-    marginBottom: 16,
+    display: 'none',
   },
   error: {
-    color: '#ef4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    textAlign: 'center',
+    display: 'none',
   },
 
   // Table styles
   tableContainer: {
     position: 'relative',
-    marginBottom: 24,
+    width: '100%',
+    maxWidth: 900,
+    aspectRatio: 2,
+    maxHeight: '80%',
   },
   tableFelt: {
     position: 'absolute',
@@ -717,36 +691,47 @@ const webStyles = StyleSheet.create({
   // My cards section
   myCardsContainer: {
     alignItems: 'center',
-    marginBottom: 24,
   },
   myCardsLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.5)',
     letterSpacing: 1,
-    marginBottom: 12,
+    marginBottom: 6,
     textTransform: 'uppercase',
   },
   myCards: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   myCard: {
-    width: 80,
-    height: 112,
-    borderRadius: 10,
+    width: 60,
+    height: 84,
+    borderRadius: 8,
   },
 
   // Actions
   actionsContainer: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    flex: 1,
+    alignItems: 'center',
+  },
+  raiseGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  resultOverlay: {
+    marginBottom: 8,
+  },
+  resultText: {
+    color: '#22c55e',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  hostRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
   },
   turnIndicator: {
     backgroundColor: '#22c55e',
@@ -764,16 +749,16 @@ const webStyles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
+    gap: 8,
     flexWrap: 'wrap',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   actionButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    minWidth: 80,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 70,
     alignItems: 'center',
   },
   foldButton: {
@@ -798,216 +783,124 @@ const webStyles = StyleSheet.create({
   },
   raiseRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   raiseInput: {
-    flex: 1,
-    maxWidth: 150,
+    width: 70,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     backgroundColor: 'rgba(255,255,255,0.05)',
     color: '#fff',
-    fontSize: 15,
+    fontSize: 14,
     textAlign: 'center',
   },
 
-  // Host controls
-  hostControls: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
+  // Host controls (inline)
+  hostControls: {},
   hostLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 1,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    textAlign: 'center',
+    display: 'none',
   },
-  hostButtonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-  },
+  hostButtonRow: {},
   hostButton: {
     backgroundColor: '#22c55e',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
   },
   hostButtonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 13,
   },
   endGameButton: {
     backgroundColor: '#ef4444',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
   },
   endGameButtonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 13,
   },
 
-  // Result card
+  // Result card (now inline as resultOverlay)
   resultCard: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-    alignItems: 'center',
+    display: 'none',
   },
   resultTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#22c55e',
-    marginBottom: 8,
-  },
-  resultText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
+    display: 'none',
   },
   resultReason: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 8,
+    display: 'none',
   },
 
-  // Rebuy card
-  rebuyCard: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    alignItems: 'center',
-  },
+  // Rebuy (inline)
+  rebuyCard: {},
   rebuyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#f59e0b',
-    marginBottom: 8,
+    display: 'none',
   },
   rebuyText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 16,
+    fontSize: 12,
+    color: '#f59e0b',
+    fontWeight: '700',
   },
   rebuyRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     alignItems: 'center',
+    marginTop: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
   rebuyInput: {
-    width: 120,
+    width: 80,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.05)',
     color: '#fff',
-    fontSize: 15,
+    fontSize: 13,
     textAlign: 'center',
   },
   rebuyButton: {
     backgroundColor: '#f59e0b',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
   },
   rebuyButtonText: {
     color: '#fff',
     fontWeight: '700',
+    fontSize: 12,
   },
 
-  // History
+  // History (hidden in full-screen view)
   historyToggle: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    marginBottom: 16,
+    display: 'none',
   },
-  historyToggleText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '700',
-    fontSize: 13,
-  },
+  historyToggleText: {},
   historyCard: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    display: 'none',
   },
-  historyTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 1,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-  },
-  historyLine: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 6,
-  },
+  historyTitle: {},
+  historyLine: {},
 
-  // Info card
+  // Info card (hidden in full-screen view)
   infoCard: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    display: 'none',
   },
-  infoTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.4)',
-    letterSpacing: 1,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-  },
-  infoText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 4,
-  },
+  infoTitle: {},
+  infoText: {},
 });
 
 // Mobile styles - similar but adjusted for smaller screens

@@ -108,8 +108,12 @@ export class GameEngine {
 
   /**
    * Adds a player to the game
+   * @param playerId - Unique player identifier
+   * @param name - Player display name
+   * @param avatar - Optional avatar
+   * @param buyIn - Optional buy-in amount (defaults to startingStack, must be within stackRange if defined)
    */
-  addPlayer(playerId: string, name: string, avatar?: string): void {
+  addPlayer(playerId: string, name: string, avatar?: string, buyIn?: number): void {
     if (this.state.players.length >= this.state.settings.maxPlayers) {
       throw new Error('Game is full');
     }
@@ -123,6 +127,19 @@ export class GameEngine {
       throw new Error('Player already in game');
     }
 
+    // Determine stack amount
+    let stack = this.state.settings.startingStack;
+    if (buyIn !== undefined) {
+      const { stackRange } = this.state.settings;
+      const minBuyIn = stackRange?.min ?? this.state.settings.bigBlind * 20;
+      const maxBuyIn = stackRange?.max ?? this.state.settings.startingStack * 2;
+      
+      if (buyIn < minBuyIn || buyIn > maxBuyIn) {
+        throw new Error(`Buy-in must be between ${minBuyIn} and ${maxBuyIn}`);
+      }
+      stack = buyIn;
+    }
+
     // First player to join becomes the host (current UX: create+join makes creator host).
     if (!this.state.hostPlayerId) {
       this.state.hostPlayerId = playerId;
@@ -132,7 +149,7 @@ export class GameEngine {
       id: playerId,
       name,
       avatar,
-      stack: this.state.settings.startingStack,
+      stack,
       currentBet: 0,
       isActive: true,
       isAllIn: false,

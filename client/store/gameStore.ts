@@ -31,6 +31,12 @@ interface JoinGameResponse {
   error?: string;
 }
 
+interface GetGameResponse {
+  success: boolean;
+  state?: GameState;
+  error?: string;
+}
+
 interface StartGameResponse {
   success: boolean;
   state?: GameState;
@@ -50,7 +56,8 @@ interface GameStoreState {
 
   // flows
   createGame: (settings?: Partial<GameSettings>) => Promise<string>;
-  joinGame: (gameCode: string, playerId: string, name: string) => Promise<void>;
+  getGameInfo: (gameCode: string) => Promise<GameState | null>;
+  joinGame: (gameCode: string, playerId: string, name: string, buyIn?: number) => Promise<void>;
   startGame: (gameCode: string, playerId: string) => Promise<void>;
   nextHand: (gameCode: string, playerId: string) => Promise<void>;
   endGame: () => void;
@@ -113,11 +120,26 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     return res.code;
   },
 
-  joinGame: async (gameCode, playerId, name) => {
+  getGameInfo: async (gameCode) => {
+    try {
+      const res = await apiGet<GetGameResponse>(`/api/games/${gameCode}`);
+      if (!res.success || !res.state) {
+        set({ error: res.error || 'Game not found' });
+        return null;
+      }
+      return res.state;
+    } catch {
+      set({ error: 'Failed to get game info' });
+      return null;
+    }
+  },
+
+  joinGame: async (gameCode, playerId, name, buyIn) => {
     // REST join ensures the player exists in game state
     const res = await apiPost<JoinGameResponse>(`/api/games/${gameCode}/join`, {
       playerId,
       name,
+      buyIn,
     });
     if (!res.success) {
       set({ error: res.error || 'Failed to join game' });

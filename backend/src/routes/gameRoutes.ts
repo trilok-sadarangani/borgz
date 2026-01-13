@@ -72,7 +72,7 @@ router.post('/:code/join', (req: Request, res: Response) => {
     if (!isValidGameCode(code)) {
       return res.status(400).json({ success: false, error: 'Invalid game code format' });
     }
-    const { playerId, name, avatar } = req.body;
+    const { playerId, name, avatar, buyIn } = req.body;
 
     if (!playerId || !name) {
       return res.status(400).json({
@@ -93,7 +93,8 @@ router.post('/:code/join', (req: Request, res: Response) => {
     // don't fail the request. The game engine currently doesn't remove players on socket leave/disconnect.
     const existing = game.getState().players.some((p) => p.id === playerId);
     if (!existing) {
-    game.addPlayer(playerId, name, avatar);
+      const buyInAmount = typeof buyIn === 'number' ? buyIn : undefined;
+      game.addPlayer(playerId, name, avatar, buyInAmount);
     }
     const state = game.getState();
 
