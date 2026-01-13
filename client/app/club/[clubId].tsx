@@ -8,7 +8,8 @@ import { useClubGameStore } from '../../store/clubGameStore';
 import { useGameStore } from '../../store/gameStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { GameSettingsForm } from '../../components/GameSettingsForm';
-import { GameSettings } from '../../../shared/types/game.types';
+import { BuyInModal } from '../../components/BuyInModal';
+import { GameSettings, GameState } from '../../../shared/types/game.types';
 
 export default function ClubDetailScreen() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function ClubDetailScreen() {
 
   const connected = useGameStore((s) => s.connected);
   const joinGame = useGameStore((s) => s.joinGame);
+  const getGameInfo = useGameStore((s) => s.getGameInfo);
   const gameError = useGameStore((s) => s.error);
 
   const historyGamesByClubId = useHistoryStore((s) => s.clubGamesByClubId);
@@ -40,6 +42,12 @@ export default function ClubDetailScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [gameSettings, setGameSettings] = useState<Partial<GameSettings>>({});
   const [expandedGameIds, setExpandedGameIds] = useState<Record<string, boolean>>({});
+
+  // Buy-in modal state
+  const [showBuyInModal, setShowBuyInModal] = useState(false);
+  const [pendingGameCode, setPendingGameCode] = useState<string | null>(null);
+  const [pendingGameState, setPendingGameState] = useState<GameState | null>(null);
+  const [joiningGame, setJoiningGame] = useState(false);
 
   const club = useMemo(() => clubs.find((c) => c.id === clubId) || null, [clubId, clubs]);
   const games = gamesByClubId[clubId] || [];
@@ -65,6 +73,39 @@ export default function ClubDetailScreen() {
       return () => clearInterval(id);
     }, [token, clubId, fetchClubGames])
   );
+
+  // Open buy-in modal for a game
+  const handleOpenBuyIn = useCallback(async (gameCode: string) => {
+    setPendingGameCode(gameCode);
+    setJoiningGame(true);
+    const gameState = await getGameInfo(gameCode);
+    setJoiningGame(false);
+    if (gameState) {
+      setPendingGameState(gameState);
+      setShowBuyInModal(true);
+    }
+  }, [getGameInfo]);
+
+  // Confirm buy-in and join game
+  const handleConfirmBuyIn = useCallback(async (buyIn: number) => {
+    if (!player || !pendingGameCode) return;
+    setJoiningGame(true);
+    await joinGame(pendingGameCode, player.id, player.name, buyIn);
+    setJoiningGame(false);
+    if (!useGameStore.getState().error) {
+      setShowBuyInModal(false);
+      setPendingGameCode(null);
+      setPendingGameState(null);
+      router.replace('/(tabs)/game');
+    }
+  }, [player, pendingGameCode, joinGame, router]);
+
+  // Cancel buy-in modal
+  const handleCancelBuyIn = useCallback(() => {
+    setShowBuyInModal(false);
+    setPendingGameCode(null);
+    setPendingGameState(null);
+  }, []);
 
   if (!token || !player) {
     return (
@@ -108,13 +149,12 @@ export default function ClubDetailScreen() {
               </View>
               <Pressable
                 style={styles.primaryButtonSmall}
-                disabled={clubGameLoading || connected}
-                onPress={async () => {
-                  await joinGame(g.code, player.id, player.name);
-                  if (!useGameStore.getState().error) router.replace('/(tabs)/game');
-                }}
+                disabled={clubGameLoading || connected || joiningGame}
+                onPress={() => handleOpenBuyIn(g.code)}
               >
-                <Text style={styles.primaryButtonTextSmall}>Join</Text>
+                <Text style={styles.primaryButtonTextSmall}>
+                  {joiningGame && pendingGameCode === g.code ? '...' : 'Join'}
+                </Text>
               </Pressable>
             </View>
           ))
@@ -216,12 +256,12 @@ export default function ClubDetailScreen() {
 
         <Pressable
           style={styles.primaryButton}
-          disabled={clubGameLoading}
+          disabled={clubGameLoading || joiningGame}
           onPress={async () => {
             const created = await createClubGame(token, clubId, gameSettings);
             if (!created) return;
-            await joinGame(created.code, player.id, player.name);
-            if (!useGameStore.getState().error) router.replace('/(tabs)/game');
+            // Open buy-in modal for the newly created game
+            await handleOpenBuyIn(created.code);
           }}
         >
           <Text style={styles.primaryButtonText}>
@@ -229,6 +269,15 @@ export default function ClubDetailScreen() {
           </Text>
         </Pressable>
       </View>
+
+      <BuyInModal
+        visible={showBuyInModal}
+        gameCode={pendingGameCode || ''}
+        gameSettings={pendingGameState?.settings || null}
+        onConfirm={handleConfirmBuyIn}
+        onCancel={handleCancelBuyIn}
+        loading={joiningGame}
+      />
     </ScrollView>
   );
 }

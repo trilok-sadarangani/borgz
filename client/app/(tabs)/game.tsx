@@ -6,9 +6,7 @@ import {
   Pressable,
   TextInput,
   Keyboard,
-  ScrollView,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
@@ -47,11 +45,6 @@ export default function GameScreen() {
   const [raiseAmount, setRaiseAmount] = useState('100');
   const [rebuyAmount, setRebuyAmount] = useState('1000');
   const [showHistory, setShowHistory] = useState(false);
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-
-  // Calculate table dimensions based on screen size
-  const tableWidth = Math.min(windowWidth * 0.9, 800);
-  const tableHeight = Math.min(windowHeight * 0.45, 400);
 
   const me = useMemo(
     () => (player ? game?.players.find((p) => p.id === player.id) || null : null),
@@ -438,9 +431,10 @@ const webStyles = StyleSheet.create({
   },
   tableArea: {
     flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    padding: 16,
   },
   bottomSection: {
     flexDirection: 'row',
@@ -528,18 +522,17 @@ const webStyles = StyleSheet.create({
   tableContainer: {
     position: 'relative',
     width: '100%',
-    maxWidth: 900,
-    aspectRatio: 2,
-    maxHeight: '80%',
+    height: '100%',
+    maxWidth: 1200,
   },
   tableFelt: {
     position: 'absolute',
-    top: '15%',
-    left: '10%',
-    right: '10%',
-    bottom: '15%',
+    top: '20%',
+    left: '15%',
+    right: '15%',
+    bottom: '20%',
     backgroundColor: '#2d5a3d',
-    borderRadius: 150,
+    borderRadius: 9999,
     borderWidth: 8,
     borderColor: '#1f3d2a',
     shadowColor: '#000',

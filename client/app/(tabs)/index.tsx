@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { GameSettingsForm } from '../../components/GameSettingsForm';
-import { GameSettings } from '../../../shared/types/game.types';
+import { BuyInModal } from '../../components/BuyInModal';
+import { GameSettings, GameState } from '../../../shared/types/game.types';
 
 // Web-specific hero component
 function WebHero() {
@@ -14,14 +15,54 @@ function WebHero() {
   const [code, setCode] = useState('');
   const [showJoinModal, setShowJoinModal] = useState(false);
   
+  // Buy-in modal state
+  const [showBuyInModal, setShowBuyInModal] = useState(false);
+  const [pendingGameCode, setPendingGameCode] = useState<string | null>(null);
+  const [pendingGameState, setPendingGameState] = useState<GameState | null>(null);
+  const [joiningGame, setJoiningGame] = useState(false);
+  
   const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
+
+  // Open buy-in modal for a game
+  const handleOpenBuyIn = useCallback(async (gameCode: string) => {
+    setPendingGameCode(gameCode);
+    setJoiningGame(true);
+    const gameState = await gameStore.getGameInfo(gameCode);
+    setJoiningGame(false);
+    if (gameState) {
+      setPendingGameState(gameState);
+      setShowBuyInModal(true);
+      setShowJoinModal(false);
+    }
+  }, [gameStore]);
+
+  // Confirm buy-in and join game
+  const handleConfirmBuyIn = useCallback(async (buyIn: number) => {
+    if (!player || !pendingGameCode) return;
+    setJoiningGame(true);
+    await gameStore.joinGame(pendingGameCode, player.id, player.name, buyIn);
+    setJoiningGame(false);
+    if (!useGameStore.getState().error) {
+      setShowBuyInModal(false);
+      setPendingGameCode(null);
+      setPendingGameState(null);
+      router.push('/(tabs)/game');
+    }
+  }, [player, pendingGameCode, gameStore, router]);
+
+  // Cancel buy-in modal
+  const handleCancelBuyIn = useCallback(() => {
+    setShowBuyInModal(false);
+    setPendingGameCode(null);
+    setPendingGameState(null);
+  }, []);
 
   const handleQuickPlay = async () => {
     if (!player) return;
     try {
       const newCode = await gameStore.createGame({});
-      await gameStore.joinGame(newCode, player.id, player.name);
-      if (!useGameStore.getState().error) router.push('/(tabs)/game');
+      // Open buy-in modal for quick play game
+      await handleOpenBuyIn(newCode);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to create game';
       useGameStore.setState({ error: msg });
@@ -30,11 +71,7 @@ function WebHero() {
 
   const handleJoinGame = async () => {
     if (!player || !normalizedCode) return;
-    await gameStore.joinGame(normalizedCode, player.id, player.name);
-    if (!useGameStore.getState().error) {
-      setShowJoinModal(false);
-      router.push('/(tabs)/game');
-    }
+    await handleOpenBuyIn(normalizedCode);
   };
 
   return (
@@ -46,8 +83,10 @@ function WebHero() {
       )}
       
       <View style={webStyles.buttonRow}>
-        <Pressable style={webStyles.quickPlayButton} onPress={handleQuickPlay}>
-          <Text style={webStyles.quickPlayButtonText}>Quick Play</Text>
+        <Pressable style={webStyles.quickPlayButton} onPress={handleQuickPlay} disabled={joiningGame}>
+          <Text style={webStyles.quickPlayButtonText}>
+            {joiningGame ? 'Loading...' : 'Quick Play'}
+          </Text>
         </Pressable>
         
         <Pressable 
@@ -68,11 +107,26 @@ function WebHero() {
             autoCapitalize="characters"
             style={webStyles.codeInput}
           />
-          <Pressable style={webStyles.joinSubmitButton} onPress={handleJoinGame}>
-            <Text style={webStyles.joinSubmitText}>Join</Text>
+          <Pressable 
+            style={webStyles.joinSubmitButton} 
+            onPress={handleJoinGame}
+            disabled={joiningGame}
+          >
+            <Text style={webStyles.joinSubmitText}>
+              {joiningGame ? '...' : 'Join'}
+            </Text>
           </Pressable>
         </View>
       )}
+
+      <BuyInModal
+        visible={showBuyInModal}
+        gameCode={pendingGameCode || ''}
+        gameSettings={pendingGameState?.settings || null}
+        onConfirm={handleConfirmBuyIn}
+        onCancel={handleCancelBuyIn}
+        loading={joiningGame}
+      />
     </View>
   );
 }
@@ -163,7 +217,46 @@ export default function LobbyScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [gameSettings, setGameSettings] = useState<Partial<GameSettings>>({});
 
+  // Buy-in modal state
+  const [showBuyInModal, setShowBuyInModal] = useState(false);
+  const [pendingGameCode, setPendingGameCode] = useState<string | null>(null);
+  const [pendingGameState, setPendingGameState] = useState<GameState | null>(null);
+  const [joiningGame, setJoiningGame] = useState(false);
+
   const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
+
+  // Open buy-in modal for a game
+  const handleOpenBuyIn = useCallback(async (gameCode: string) => {
+    setPendingGameCode(gameCode);
+    setJoiningGame(true);
+    const gameState = await gameStore.getGameInfo(gameCode);
+    setJoiningGame(false);
+    if (gameState) {
+      setPendingGameState(gameState);
+      setShowBuyInModal(true);
+    }
+  }, [gameStore]);
+
+  // Confirm buy-in and join game
+  const handleConfirmBuyIn = useCallback(async (buyIn: number) => {
+    if (!player || !pendingGameCode) return;
+    setJoiningGame(true);
+    await gameStore.joinGame(pendingGameCode, player.id, player.name, buyIn);
+    setJoiningGame(false);
+    if (!useGameStore.getState().error) {
+      setShowBuyInModal(false);
+      setPendingGameCode(null);
+      setPendingGameState(null);
+      router.push('/(tabs)/game');
+    }
+  }, [player, pendingGameCode, gameStore, router]);
+
+  // Cancel buy-in modal
+  const handleCancelBuyIn = useCallback(() => {
+    setShowBuyInModal(false);
+    setPendingGameCode(null);
+    setPendingGameState(null);
+  }, []);
 
   // On web, show the hero component
   if (Platform.OS === 'web') {
@@ -211,12 +304,12 @@ export default function LobbyScreen() {
         />
         <Pressable
           style={styles.primaryButton}
-          onPress={async () => {
-            await gameStore.joinGame(normalizedCode, player.id, player.name);
-            if (!useGameStore.getState().error) router.push('/(tabs)/game');
-          }}
+          onPress={() => handleOpenBuyIn(normalizedCode)}
+          disabled={joiningGame}
         >
-          <Text style={styles.primaryButtonText}>Join</Text>
+          <Text style={styles.primaryButtonText}>
+            {joiningGame ? 'Loading...' : 'Join'}
+          </Text>
         </Pressable>
       </View>
 
@@ -247,17 +340,29 @@ export default function LobbyScreen() {
           onPress={async () => {
             try {
               const newCode = await gameStore.createGame(gameSettings);
-              await gameStore.joinGame(newCode, player.id, player.name);
-              if (!useGameStore.getState().error) router.push('/(tabs)/game');
+              // Open buy-in modal for the newly created game
+              await handleOpenBuyIn(newCode);
             } catch (e) {
               const msg = e instanceof Error ? e.message : 'Failed to create game';
               useGameStore.setState({ error: msg });
             }
           }}
+          disabled={joiningGame}
         >
-          <Text style={styles.primaryButtonText}>Create & Join</Text>
+          <Text style={styles.primaryButtonText}>
+            {joiningGame ? 'Loading...' : 'Create & Join'}
+          </Text>
         </Pressable>
       </View>
+
+      <BuyInModal
+        visible={showBuyInModal}
+        gameCode={pendingGameCode || ''}
+        gameSettings={pendingGameState?.settings || null}
+        onConfirm={handleConfirmBuyIn}
+        onCancel={handleCancelBuyIn}
+        loading={joiningGame}
+      />
     </ScrollView>
   );
 }

@@ -10,6 +10,8 @@ import {
   Platform,
   Animated,
 } from 'react-native';
+import EmojiPicker from 'rn-emoji-picker';
+import { emojis } from 'rn-emoji-picker/dist/data';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 
@@ -18,13 +20,6 @@ const isWeb = Platform.OS === 'web';
 interface GameChatProps {
   gameCode: string;
 }
-
-const EMOJI_LIST = [
-  '😀', '😂', '🤣', '😍', '🥳', '😎', '🤔', '😅',
-  '👍', '👎', '👏', '🙌', '💪', '🔥', '❤️', '💯',
-  '🎉', '🎊', '🏆', '🥇', '🃏', '♠️', '♥️', '♦️',
-  '♣️', '🎰', '💰', '💵', '🤑', '😱', '😤', '🤯',
-];
 
 export function GameChat({ gameCode }: GameChatProps) {
   const {
@@ -41,6 +36,7 @@ export function GameChat({ gameCode }: GameChatProps) {
   const { player } = useAuthStore();
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [recentEmojis, setRecentEmojis] = useState<typeof emojis>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
 
@@ -84,8 +80,8 @@ export function GameChat({ gameCode }: GameChatProps) {
     Keyboard.dismiss();
   };
 
-  const handleEmojiSelect = (emoji: string) => {
-    setInputText((prev) => prev + emoji);
+  const handleEmojiSelect = (emoji: { emoji: string }) => {
+    setInputText((prev) => prev + emoji.emoji);
   };
 
   const toggleEmojiPicker = () => {
@@ -166,21 +162,15 @@ export function GameChat({ gameCode }: GameChatProps) {
           {/* Emoji Picker */}
           {showEmojiPicker && (
             <View style={styles.emojiPicker}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.emojiScrollContent}
-              >
-                {EMOJI_LIST.map((emoji, index) => (
-                  <Pressable
-                    key={index}
-                    style={styles.emojiButton}
-                    onPress={() => handleEmojiSelect(emoji)}
-                  >
-                    <Text style={styles.emojiText}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <EmojiPicker
+                emojis={emojis}
+                recent={recentEmojis}
+                onSelect={handleEmojiSelect}
+                onChangeRecent={setRecentEmojis}
+                darkMode={true}
+                perLine={isWeb ? 8 : 7}
+                backgroundColor="transparent"
+              />
             </View>
           )}
 
@@ -258,7 +248,7 @@ const webStyles = StyleSheet.create({
     bottom: 24,
     right: 24,
     width: 360,
-    height: 480,
+    height: 520,
     backgroundColor: '#1f2328',
     borderRadius: 16,
     borderWidth: 1,
@@ -382,25 +372,10 @@ const webStyles = StyleSheet.create({
     fontSize: 14,
   },
   emojiPicker: {
+    height: 250,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.1)',
     backgroundColor: '#2a2f36',
-    paddingVertical: 8,
-  },
-  emojiScrollContent: {
-    paddingHorizontal: 12,
-    gap: 4,
-  },
-  emojiButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emojiText: {
-    fontSize: 22,
   },
   emojiToggle: {
     width: 44,
@@ -458,7 +433,7 @@ const mobileStyles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
+    height: '70%',
     backgroundColor: '#1f2328',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -580,25 +555,10 @@ const mobileStyles = StyleSheet.create({
     fontSize: 13,
   },
   emojiPicker: {
+    height: 220,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.1)',
     backgroundColor: '#2a2f36',
-    paddingVertical: 6,
-  },
-  emojiScrollContent: {
-    paddingHorizontal: 10,
-    gap: 4,
-  },
-  emojiButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emojiText: {
-    fontSize: 20,
   },
   emojiToggle: {
     width: 40,
