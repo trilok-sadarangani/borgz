@@ -5,6 +5,7 @@ import { dbPersistenceService } from '../services/dbPersistenceService';
 import { gameService } from '../services/gameService';
 import { gameHistoryService } from '../services/gameHistoryService';
 import { isValidGameCode } from '../utils/gameCode';
+import { logger, toErrorMeta } from '../utils/logger';
 import { Club, GameSettings } from '../types';
 
 const router = Router();
@@ -34,20 +35,15 @@ function requireClubMembership(clubId: string, playerId: string): Club & { invit
 /**
  * GET /api/clubs - List clubs for the current authenticated player
  */
-router.get('/', requireAuth, (req: Request, res: Response) => {
+router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:GET /api/clubs',message:'Fetching clubs for player',data:{playerId,allClubsCount:clubService.listClubs().length,allClubIds:clubService.listClubs().map(c=>c.id),enableDbPersistence:process.env.ENABLE_DB_PERSISTENCE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H3'})}).catch(()=>{});
-    // #endregion
+    // Ensure clubs are available after backend restarts.
+    await clubService.ensureHydratedFromDb();
     const clubs = clubService
       .listClubs()
       .filter((c) => (c.memberIds || []).includes(playerId))
       .map((c) => sanitizeClubForMember(c));
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:GET /api/clubs result',message:'Filtered clubs for player',data:{playerId,filteredClubsCount:clubs.length,filteredClubIds:clubs.map(c=>c.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'})}).catch(()=>{});
-    // #endregion
     return res.json({ success: true, clubs, count: clubs.length });
   } catch (error) {
     return res.status(500).json({
@@ -61,14 +57,10 @@ router.get('/', requireAuth, (req: Request, res: Response) => {
  * POST /api/clubs - Create a new club
  * body: { name: string; description?: string }
  */
-router.post('/', requireAuth, (req: Request, res: Response) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
     const { name, description } = req.body as { name?: string; description?: string };
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:POST /api/clubs',message:'Creating club',data:{playerId,name,enableDbPersistence:process.env.ENABLE_DB_PERSISTENCE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H3'})}).catch(()=>{});
-    // #endregion
 
     const trimmedName = (name || '').trim();
     if (!trimmedName) {
@@ -83,14 +75,9 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
     }
 
     const club = clubService.createClub(playerId, trimmedName, trimmedDesc);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:POST /api/clubs created',message:'Club created in memory',data:{clubId:club.id,playerId,inviteCode:club.inviteCode},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     // Best-effort DB persistence for Prisma visibility (behind ENABLE_DB_PERSISTENCE=true).
     void dbPersistenceService.ensureClub(club.id).catch((err) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'clubRoutes.ts:POST /api/clubs db error',message:'DB persistence failed',data:{clubId:club.id,error:String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
+      logger.warn('db.ensureClub.failed', { clubId: club.id, err: toErrorMeta(err) });
     });
     return res.status(201).json({ success: true, club: sanitizeClubForMember(club) });
   } catch (error) {
@@ -105,9 +92,11 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
  * POST /api/clubs/join - Join a club by invite code
  * body: { inviteCode: string }
  */
-router.post('/join', requireAuth, (req: Request, res: Response) => {
+router.post('/join', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
+    // Ensure clubs are available after backend restarts.
+    await clubService.ensureHydratedFromDb();
     const { inviteCode } = req.body as { inviteCode?: string };
     const normalized = (inviteCode || '').trim().toUpperCase();
 
@@ -120,7 +109,9 @@ router.post('/join', requireAuth, (req: Request, res: Response) => {
 
     const club = clubService.joinClubByInviteCode(normalized, playerId);
     // Best-effort DB persistence for Prisma visibility (behind ENABLE_DB_PERSISTENCE=true).
-    void dbPersistenceService.ensureClub(club.id).catch(() => {});
+    void dbPersistenceService.ensureClub(club.id).catch((err) => {
+      logger.warn('db.ensureClub.failed', { clubId: club.id, err: toErrorMeta(err) });
+    });
     return res.json({ success: true, club: sanitizeClubForMember(club) });
   } catch (error) {
     return res.status(400).json({
@@ -133,9 +124,11 @@ router.post('/join', requireAuth, (req: Request, res: Response) => {
 /**
  * GET /api/clubs/:clubId - Get club details (member only)
  */
-router.get('/:clubId', requireAuth, (req: Request, res: Response) => {
+router.get('/:clubId', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
+    // Ensure clubs are available after backend restarts.
+    await clubService.ensureHydratedFromDb();
     const clubId = req.params.clubId;
     const club = requireClubMembership(clubId, playerId);
     return res.json({ success: true, club: sanitizeClubForMember(club) });
@@ -149,9 +142,11 @@ router.get('/:clubId', requireAuth, (req: Request, res: Response) => {
 /**
  * GET /api/clubs/:clubId/games - List active games for this club (member only)
  */
-router.get('/:clubId/games', requireAuth, (req: Request, res: Response) => {
+router.get('/:clubId/games', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
+    // Ensure clubs are available after backend restarts.
+    await clubService.ensureHydratedFromDb();
     const clubId = req.params.clubId;
     requireClubMembership(clubId, playerId);
     const games = gameService.listGamesByClub(clubId);
@@ -166,9 +161,11 @@ router.get('/:clubId/games', requireAuth, (req: Request, res: Response) => {
 /**
  * GET /api/clubs/:clubId/history - List club games with full hand history (member only)
  */
-router.get('/:clubId/history', requireAuth, (req: Request, res: Response) => {
+router.get('/:clubId/history', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
+    // Ensure clubs are available after backend restarts.
+    await clubService.ensureHydratedFromDb();
     const clubId = req.params.clubId;
     requireClubMembership(clubId, playerId);
 

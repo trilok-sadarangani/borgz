@@ -17,6 +17,7 @@ const gameSocket_1 = require("./sockets/gameSocket");
 const requestLogger_1 = require("./middleware/requestLogger");
 const errorHandler_1 = require("./middleware/errorHandler");
 const logger_1 = require("./utils/logger");
+const clubService_1 = require("./services/clubService");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const httpServer = (0, http_1.createServer)(app);
@@ -57,4 +58,9 @@ httpServer.listen(PORT, () => {
         corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8081',
     });
     logger_1.logger.info('socket.ready');
+});
+// Best-effort: hydrate in-memory caches from DB so reads survive restarts.
+// Do NOT block startup if DB is down; routes will still work in in-memory mode.
+void clubService_1.clubService.loadFromDb().catch((err) => {
+    logger_1.logger.warn('clubService.loadFromDb.failed', { err: (0, logger_1.toErrorMeta)(err) });
 });

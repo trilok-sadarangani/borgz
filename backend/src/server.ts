@@ -12,6 +12,7 @@ import { setupGameSocket } from './sockets/gameSocket';
 import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import { logger, toErrorMeta } from './utils/logger';
+import { clubService } from './services/clubService';
 
 dotenv.config();
 
@@ -63,5 +64,11 @@ httpServer.listen(PORT, () => {
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8081',
   });
   logger.info('socket.ready');
+});
+
+// Best-effort: hydrate in-memory caches from DB so reads survive restarts.
+// Do NOT block startup if DB is down; routes will still work in in-memory mode.
+void clubService.loadFromDb().catch((err) => {
+  logger.warn('clubService.loadFromDb.failed', { err: toErrorMeta(err) });
 });
 

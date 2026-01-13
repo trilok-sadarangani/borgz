@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const requireAuth_1 = require("../middleware/requireAuth");
 const statsService_1 = require("../services/statsService");
+const gameHistoryService_1 = require("../services/gameHistoryService");
 const router = (0, express_1.Router)();
 function getAuthedPlayerId(req) {
     const player = req.player;
@@ -27,7 +28,7 @@ function parseOptionalNumber(v) {
  * - variant (texas-holdem | omaha | omaha-hi-lo)
  * - depthBucket (0-50 | 50-100 | 100-150 | 150-500 | 500+)
  */
-router.get('/me', requireAuth_1.requireAuth, (req, res) => {
+router.get('/me', requireAuth_1.requireAuth, async (req, res) => {
     try {
         const playerId = getAuthedPlayerId(req);
         const q = req.query;
@@ -38,6 +39,11 @@ router.get('/me', requireAuth_1.requireAuth, (req, res) => {
         const code = typeof q.code === 'string' ? q.code : undefined;
         const variant = typeof q.variant === 'string' ? q.variant : undefined;
         const depthBucket = typeof q.depthBucket === 'string' ? q.depthBucket : undefined;
+        // Ensure persisted history is available after backend restarts.
+        // (Stats are derived from GameHistoryService.)
+        // NOTE: we hydrate without a time bound because stats queries may omit from/to.
+        // If this becomes too heavy, we can use (from || to) to bound hydration.
+        await gameHistoryService_1.gameHistoryService.ensureHydratedFromDb();
         const query = { from, to, clubId, gameId, code, variant, depthBucket };
         const out = statsService_1.playerStatsService.getMyStats(playerId, query);
         return res.json({

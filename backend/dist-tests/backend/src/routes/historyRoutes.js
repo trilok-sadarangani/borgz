@@ -16,9 +16,10 @@ function getAuthedPlayerId(req) {
  * - all seat sessions for the current player (includes club + non-club)
  * - hands for each session from join -> leave (or join -> now if still open)
  */
-router.get('/me', requireAuth_1.requireAuth, (req, res) => {
+router.get('/me', requireAuth_1.requireAuth, async (req, res) => {
     try {
         const playerId = getAuthedPlayerId(req);
+        await gameHistoryService_1.gameHistoryService.ensureHydratedFromDb();
         const sessions = gameHistoryService_1.gameHistoryService.getPlayerSessions(playerId).map((s) => {
             const game = gameHistoryService_1.gameHistoryService.getGame(s.gameId);
             const hands = gameHistoryService_1.gameHistoryService.getHandsForSession(s);

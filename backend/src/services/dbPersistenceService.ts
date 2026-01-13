@@ -88,9 +88,6 @@ export class DbPersistenceService {
   }
 
   async ensureClub(clubId: string): Promise<void> {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dbPersistenceService.ts:ensureClub',message:'ensureClub called',data:{clubId,isEnabled:isEnabled(),enableDbPersistence:process.env.ENABLE_DB_PERSISTENCE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H4'})}).catch(()=>{});
-    // #endregion
     if (!isEnabled()) return;
     const prisma = getPrisma();
     const club = clubService.getClub(clubId);
@@ -113,9 +110,6 @@ export class DbPersistenceService {
         ownerId: club.ownerId,
       },
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/7ef88ac2-16a0-4d92-9c65-f291348accf1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dbPersistenceService.ts:ensureClub success',message:'Club persisted to DB',data:{clubId,clubName:club.name,ownerId:club.ownerId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H4'})}).catch(()=>{});
-    // #endregion
 
     // Persist club members so Prisma Studio shows memberships too.
     const members = clubService.listMembers(club.id);

@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAuth = requireAuth;
 const authService_1 = require("../services/authService");
+const playerService_1 = require("../services/playerService");
+const logger_1 = require("../utils/logger");
 function getBearerToken(req) {
     const header = req.header('authorization') || req.header('Authorization');
     if (!header)
@@ -77,8 +79,13 @@ async function requireAuth(req, res, next) {
                 (typeof payload.nickname === 'string' && payload.nickname) ||
                 (typeof payload.email === 'string' && payload.email) ||
                 sub;
+            const email = typeof payload.email === 'string' ? payload.email : undefined;
             req.player = { id: sub, name };
             req.token = token;
+            // Best-effort: ensure player exists in DB for persistence + FK safety.
+            void playerService_1.playerService.getOrCreatePlayer({ id: sub, name, email }).catch((err) => {
+                logger_1.logger.warn('playerService.getOrCreatePlayer.failed', { playerId: sub, err: (0, logger_1.toErrorMeta)(err) });
+            });
             next();
             return;
         }

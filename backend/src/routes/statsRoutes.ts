@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { playerStatsService, StatsQuery, DepthBucket } from '../services/statsService';
+import { gameHistoryService } from '../services/gameHistoryService';
 import { PokerVariant } from '../types';
 
 const router = Router();
@@ -37,7 +38,7 @@ export type StatsMeResponse =
  * - variant (texas-holdem | omaha | omaha-hi-lo)
  * - depthBucket (0-50 | 50-100 | 100-150 | 150-500 | 500+)
  */
-router.get('/me', requireAuth, (req: Request, res: Response) => {
+router.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {
     const playerId = getAuthedPlayerId(req);
 
@@ -49,6 +50,12 @@ router.get('/me', requireAuth, (req: Request, res: Response) => {
     const code = typeof q.code === 'string' ? q.code : undefined;
     const variant = typeof q.variant === 'string' ? (q.variant as PokerVariant) : undefined;
     const depthBucket = typeof q.depthBucket === 'string' ? (q.depthBucket as DepthBucket) : undefined;
+
+    // Ensure persisted history is available after backend restarts.
+    // (Stats are derived from GameHistoryService.)
+    // NOTE: we hydrate without a time bound because stats queries may omit from/to.
+    // If this becomes too heavy, we can use (from || to) to bound hydration.
+    await gameHistoryService.ensureHydratedFromDb();
 
     const query: StatsQuery = { from, to, clubId, gameId, code, variant, depthBucket };
     const out = playerStatsService.getMyStats(playerId, query);

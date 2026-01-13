@@ -2,11 +2,23 @@
  * Player service for managing seed/test players
  * Provides predefined players for testing and development
  */
+import { getPrisma } from '../utils/prisma';
 
 export interface SeedPlayer {
   id: string;
   name: string;
   avatar?: string;
+}
+
+export interface AuthedPlayerInput {
+  id: string;
+  name?: string;
+  avatar?: string;
+  email?: string;
+}
+
+function isDbPersistenceEnabled(): boolean {
+  return String(process.env.ENABLE_DB_PERSISTENCE || '').toLowerCase() === 'true';
 }
 
 /**
@@ -55,6 +67,33 @@ export class PlayerService {
    */
   getSeedPlayersByIds(playerIds: string[]): SeedPlayer[] {
     return SEED_PLAYERS.filter((p) => playerIds.includes(p.id));
+  }
+
+  /**
+   * Ensures an authenticated player exists in Postgres (for persistence + FK safety).
+   * No-op when ENABLE_DB_PERSISTENCE is not enabled.
+   */
+  async getOrCreatePlayer(input: AuthedPlayerInput): Promise<void> {
+    if (!isDbPersistenceEnabled()) return;
+    const prisma = getPrisma();
+    const name = (input.name || '').trim() || input.email || input.id;
+
+    await prisma.player.upsert({
+      where: { id: input.id },
+      create: {
+        id: input.id,
+        name,
+        avatar: input.avatar,
+        email: input.email,
+        isSeed: false,
+      },
+      update: {
+        name,
+        avatar: input.avatar,
+        email: input.email,
+        isSeed: false,
+      },
+    });
   }
 }
 

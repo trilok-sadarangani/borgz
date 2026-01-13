@@ -1,5 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { authService } from '../services/authService';
+import { playerService } from '../services/playerService';
+import { logger, toErrorMeta } from '../utils/logger';
 
 function getBearerToken(req: Request): string | undefined {
   const header = req.header('authorization') || req.header('Authorization');
@@ -88,9 +90,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         (typeof payload.nickname === 'string' && payload.nickname) ||
         (typeof payload.email === 'string' && payload.email) ||
         sub;
+      const email = typeof payload.email === 'string' ? payload.email : undefined;
 
       (req as unknown as { player: unknown; token: string }).player = { id: sub, name };
       (req as unknown as { player: unknown; token: string }).token = token;
+
+      // Best-effort: ensure player exists in DB for persistence + FK safety.
+      void playerService.getOrCreatePlayer({ id: sub, name, email }).catch((err) => {
+        logger.warn('playerService.getOrCreatePlayer.failed', { playerId: sub, err: toErrorMeta(err) });
+      });
+
       next();
       return;
     }

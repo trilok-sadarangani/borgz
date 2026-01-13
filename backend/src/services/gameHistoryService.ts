@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Card, GameAction, GameSettings, PokerVariant } from '../types';
+import { getPrisma } from '../utils/prisma';
 
 export type StoredHand = {
   handNumber: number;
@@ -55,6 +56,15 @@ export type SeatSession = {
   leftAt?: number;
 };
 
+function isDbPersistenceEnabled(): boolean {
+  return String(process.env.ENABLE_DB_PERSISTENCE || '').toLowerCase() === 'true';
+}
+
+function toMs(d: Date | null | undefined): number | undefined {
+  if (!d) return undefined;
+  return d.getTime();
+}
+
 /**
  * In-memory game history store (Phase 1).
  * Persists:
@@ -69,6 +79,129 @@ export class GameHistoryService {
   private sessionsByPlayerId = new Map<string, SeatSession[]>(); // playerId -> sessions (newest-first)
   private openSessionIdByGameAndPlayer = new Map<string, string>(); // `${gameId}:${playerId}` -> sessionId
   private lastHandEndedAtByGameId = new Map<string, number>(); // gameId -> endedAt
+  private hydratedFromDb = false;
+
+  /**
+   * Hydrate in-memory history from Postgres/Prisma.
+   *
+   * Note: We do not currently persist explicit seat sessions. During hydration we synthesize
+   * a single session per (game, player) covering the whole game based on hand snapshots.
+   */
+  async loadFromDb(options?: { sinceMs?: number }): Promise<void> {
+    if (!isDbPersistenceEnabled()) return;
+
+    const prisma = getPrisma();
+    const since = typeof options?.sinceMs === 'number' ? new Date(options.sinceMs) : undefined;
+
+    const games = await prisma.game.findMany({
+      include: {
+        hands: {
+          where: since ? { endedAt: { gte: since } } : undefined,
+          include: { actions: true },
+          orderBy: { handNumber: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Replace in-memory state with DB snapshot.
+    this.gamesById.clear();
+    this.gameIdByCode.clear();
+    this.sessionsByPlayerId.clear();
+    this.openSessionIdByGameAndPlayer.clear();
+    this.lastHandEndedAtByGameId.clear();
+
+    for (const g of games) {
+      const stored: StoredGame = {
+        gameId: g.id,
+        code: g.code,
+        clubId: g.clubId || undefined,
+        variant: g.variant as PokerVariant,
+        settings: g.settings as unknown as GameSettings,
+        createdAt: toMs(g.createdAt) ?? Date.now(),
+        endedAt: toMs(g.finishedAt) || undefined,
+        hands: [],
+      };
+
+      let lastEndedAt = 0;
+      const participants = new Set<string>();
+
+      for (const h of g.hands || []) {
+        const endedAt = toMs(h.endedAt);
+        if (!endedAt) continue;
+        lastEndedAt = Math.max(lastEndedAt, endedAt);
+
+        const table = (h.table || undefined) as unknown as StoredHand['table'] | undefined;
+        const seats = table?.seats || [];
+        for (const pid of seats) participants.add(pid);
+
+        const stacksStart = (h.stacksStartByPlayerId || undefined) as unknown as
+          | Record<string, number>
+          | undefined;
+        if (stacksStart) for (const pid of Object.keys(stacksStart)) participants.add(pid);
+
+        const winners = (h.winners || undefined) as unknown as StoredHand['winners'] | undefined;
+        if (winners) for (const w of winners) if (w?.playerId) participants.add(w.playerId);
+
+        const actions: GameAction[] = (h.actions || []).map((a) => ({
+          playerId: a.playerId,
+          action: a.action as GameAction['action'],
+          amount: typeof a.amount === 'number' ? a.amount : undefined,
+          phase: (a.phase || undefined) as GameAction['phase'],
+          betTo: typeof a.betTo === 'number' ? a.betTo : undefined,
+          currentBetAfter: typeof a.currentBetAfter === 'number' ? a.currentBetAfter : undefined,
+          timestamp: toMs(a.timestamp) ?? endedAt,
+        }));
+        for (const a of actions) if (a.playerId) participants.add(a.playerId);
+
+        const reason = h.endReason === 'showdown' ? 'showdown' : 'fold';
+
+        const full: StoredHand = {
+          handNumber: h.handNumber,
+          startedAt: toMs(h.startedAt),
+          endedAt,
+          reason,
+          winners: winners || [],
+          pot: h.pot,
+          communityCards: (h.communityCards || []) as unknown as Card[],
+          actions,
+          table,
+          stacksStartByPlayerId: stacksStart,
+          stacksEndByPlayerId: (h.stacksEndByPlayerId || undefined) as unknown as
+            | Record<string, number>
+            | undefined,
+        };
+
+        stored.hands.push(full);
+      }
+
+      this.gamesById.set(stored.gameId, stored);
+      this.gameIdByCode.set(stored.code.toUpperCase(), stored.gameId);
+      if (lastEndedAt) this.lastHandEndedAtByGameId.set(stored.gameId, lastEndedAt);
+
+      const leftAt = stored.endedAt ?? (lastEndedAt || undefined);
+      for (const playerId of participants) {
+        const session: SeatSession = {
+          sessionId: uuidv4(),
+          gameId: stored.gameId,
+          code: stored.code,
+          clubId: stored.clubId,
+          playerId,
+          joinedAt: stored.createdAt,
+          leftAt,
+        };
+        const existing = this.sessionsByPlayerId.get(playerId) || [];
+        this.sessionsByPlayerId.set(playerId, [session, ...existing]);
+      }
+    }
+
+    this.hydratedFromDb = true;
+  }
+
+  async ensureHydratedFromDb(options?: { sinceMs?: number }): Promise<void> {
+    if (this.hydratedFromDb) return;
+    await this.loadFromDb(options);
+  }
 
   registerGame(game: Omit<StoredGame, 'hands'>): void {
     if (this.gamesById.has(game.gameId)) return;
