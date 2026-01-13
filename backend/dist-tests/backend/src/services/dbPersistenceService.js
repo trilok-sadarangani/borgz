@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.dbPersistenceService = exports.DbPersistenceService = void 0;
+const client_1 = require("@prisma/client");
 const prisma_1 = require("../utils/prisma");
 const playerService_1 = require("./playerService");
 const clubService_1 = require("./clubService");
@@ -158,13 +159,42 @@ class DbPersistenceService {
             },
         });
     }
+    /**
+     * Persists a snapshot of the live game state for resume after restart.
+     * Called after every state-changing action.
+     */
+    async persistGameSnapshot(gameId, snapshot) {
+        if (!isEnabled())
+            return;
+        const prisma = (0, prisma_1.getPrisma)();
+        await prisma.game.update({
+            where: { id: gameId },
+            data: {
+                snapshot: snapshot,
+                phase: snapshot.state.phase,
+                pot: snapshot.state.pot,
+                currentBet: snapshot.state.currentBet,
+                dealerPosition: snapshot.state.dealerPosition,
+                smallBlindPosition: snapshot.state.smallBlindPosition,
+                bigBlindPosition: snapshot.state.bigBlindPosition,
+                activePlayerIndex: snapshot.state.activePlayerIndex,
+                communityCards: snapshot.state.communityCards,
+            },
+        });
+    }
     async persistGameEnded(gameId, endedAtMs) {
         if (!isEnabled())
             return;
         const prisma = (0, prisma_1.getPrisma)();
-        await prisma.game.updateMany({
+        // Use update instead of updateMany so we can set the snapshot to Prisma.JsonNull
+        await prisma.game.update({
             where: { id: gameId },
-            data: { finishedAt: new Date(endedAtMs), phase: 'finished' },
+            data: {
+                finishedAt: new Date(endedAtMs),
+                phase: 'finished',
+                // Clear the snapshot so this game won't be loaded on next restart
+                snapshot: client_1.Prisma.JsonNull,
+            },
         });
     }
     async persistHandFinished(gameId, hand) {

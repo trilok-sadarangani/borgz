@@ -103,8 +103,12 @@ function setupGameSocket(io) {
                     return;
                 }
                 game.processPlayerAction(socket.playerId, data.action, data.amount);
-                // If the hand just finished, persist a snapshot for history.
+                // Persist snapshot for live game resume
                 const state = game.getState();
+                void dbPersistenceService_1.dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+                    slog.warn('db.persistGameSnapshot.failed', { err: (0, logger_1.toErrorMeta)(err) });
+                });
+                // If the hand just finished, persist a snapshot for history.
                 if (state.phase === 'finished' && state.lastHandResult) {
                     const stacksStartByPlayerId = game.getHandStartStacksByPlayerId?.() || undefined;
                     const stacksEndByPlayerId = {};
@@ -189,6 +193,11 @@ function setupGameSocket(io) {
                     return;
                 }
                 game.startGame(socket.playerId);
+                // Persist snapshot for live game resume
+                const state = game.getState();
+                void dbPersistenceService_1.dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+                    slog.warn('db.persistGameSnapshot.failed', { err: (0, logger_1.toErrorMeta)(err) });
+                });
                 await emitStatesForGame(socket.gameCode);
                 slog.info('socket.startGame.success');
             }
@@ -217,6 +226,11 @@ function setupGameSocket(io) {
                     return;
                 }
                 game.nextHand(socket.playerId);
+                // Persist snapshot for live game resume
+                const state = game.getState();
+                void dbPersistenceService_1.dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+                    slog.warn('db.persistGameSnapshot.failed', { err: (0, logger_1.toErrorMeta)(err) });
+                });
                 await emitStatesForGame(socket.gameCode);
                 slog.info('socket.nextHand.success');
             }
@@ -246,6 +260,11 @@ function setupGameSocket(io) {
                 }
                 const amount = Number(data?.amount);
                 game.rebuy(socket.playerId, amount);
+                // Persist snapshot for live game resume
+                const state = game.getState();
+                void dbPersistenceService_1.dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+                    slog.warn('db.persistGameSnapshot.failed', { err: (0, logger_1.toErrorMeta)(err) });
+                });
                 await emitStatesForGame(socket.gameCode);
                 slog.info('socket.rebuy.success', { amount });
             }

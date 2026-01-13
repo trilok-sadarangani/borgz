@@ -26,6 +26,16 @@ class TexasHoldem extends engine_1.GameEngine {
         }
         return true;
     }
+    /**
+     * Restores a TexasHoldem game from a snapshot.
+     * Used to resume live games after server restart.
+     */
+    static fromSnapshot(snapshot) {
+        // Use the parent class's fromSnapshot, then set the prototype to TexasHoldem
+        const engine = engine_1.GameEngine.fromSnapshot(snapshot);
+        Object.setPrototypeOf(engine, TexasHoldem.prototype);
+        return engine;
+    }
 }
 exports.TexasHoldem = TexasHoldem;
 /**

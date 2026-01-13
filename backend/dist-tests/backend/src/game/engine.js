@@ -661,5 +661,36 @@ class GameEngine {
         });
         return state;
     }
+    /**
+     * Serializes the full engine state for persistence.
+     * Used to save live games to the database for resume after restart.
+     */
+    getSnapshot() {
+        return {
+            state: JSON.parse(JSON.stringify(this.state)), // Deep clone to avoid mutation
+            deck: [...this.deck],
+            lastRaise: this.lastRaise,
+            closingActionIndex: this.closingActionIndex,
+            handStartedAt: this.handStartedAt,
+            handStartStacksByPlayerId: { ...this.handStartStacksByPlayerId },
+        };
+    }
+    /**
+     * Restores engine state from a snapshot.
+     * Used to resume live games after server restart.
+     */
+    static fromSnapshot(snapshot) {
+        // Create a new instance without calling the normal constructor
+        const engine = Object.create(GameEngine.prototype);
+        // Restore all private fields from the snapshot
+        engine.state = snapshot.state;
+        engine.deck = snapshot.deck;
+        engine.lastRaise = snapshot.lastRaise;
+        engine.closingActionIndex = snapshot.closingActionIndex;
+        engine.handStartedAt = snapshot.handStartedAt;
+        engine.handStartStacksByPlayerId =
+            snapshot.handStartStacksByPlayerId;
+        return engine;
+    }
 }
 exports.GameEngine = GameEngine;

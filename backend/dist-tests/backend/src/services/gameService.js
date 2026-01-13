@@ -7,6 +7,10 @@ const validateSettings_1 = require("../utils/validateSettings");
 const gameHistoryService_1 = require("./gameHistoryService");
 const dbPersistenceService_1 = require("./dbPersistenceService");
 const logger_1 = require("../utils/logger");
+const prisma_1 = require("../utils/prisma");
+function isDbEnabled() {
+    return String(process.env.ENABLE_DB_PERSISTENCE || '').toLowerCase() === 'true';
+}
 /**
  * Manages active game instances
  */
@@ -155,6 +159,78 @@ class GameService {
      */
     gameCodeExists(code) {
         return this.gameCodes.has(code);
+    }
+    /**
+     * Loads live games from the database and restores them into memory.
+     * Called at server startup to resume games that were active before restart.
+     */
+    async loadLiveGamesFromDb() {
+        if (!isDbEnabled()) {
+            logger_1.logger.info('gameService.loadLiveGamesFromDb.skipped', { reason: 'DB persistence disabled' });
+            return;
+        }
+        try {
+            const prisma = (0, prisma_1.getPrisma)();
+            // Query games that haven't finished - we'll filter for non-null snapshots in JS
+            const liveGames = await prisma.game.findMany({
+                where: {
+                    finishedAt: null,
+                },
+            });
+            let restored = 0;
+            for (const row of liveGames) {
+                try {
+                    // Skip games without a snapshot
+                    if (!row.snapshot)
+                        continue;
+                    const snapshot = row.snapshot;
+                    if (!snapshot || !snapshot.state) {
+                        logger_1.logger.warn('gameService.loadLiveGamesFromDb.invalidSnapshot', { gameId: row.id });
+                        continue;
+                    }
+                    // Restore the game engine from the snapshot
+                    const engine = texasHoldem_1.TexasHoldem.fromSnapshot(snapshot);
+                    const state = engine.getState();
+                    // Register in memory
+                    this.games.set(row.id, engine);
+                    this.gameCodes.set(state.code.toUpperCase(), row.id);
+                    this.gameMeta.set(row.id, {
+                        clubId: row.clubId || undefined,
+                        createdAt: row.createdAt.getTime(),
+                    });
+                    // Also register in history service so stats/history work
+                    gameHistoryService_1.gameHistoryService.registerGame({
+                        gameId: row.id,
+                        code: state.code,
+                        clubId: row.clubId || undefined,
+                        variant: state.variant,
+                        settings: state.settings,
+                        createdAt: state.createdAt,
+                        endedAt: undefined,
+                    });
+                    restored += 1;
+                    logger_1.logger.info('gameService.loadLiveGamesFromDb.restored', {
+                        gameId: row.id,
+                        code: state.code,
+                        phase: state.phase,
+                        playerCount: state.players.length,
+                    });
+                }
+                catch (err) {
+                    logger_1.logger.warn('gameService.loadLiveGamesFromDb.restoreFailed', {
+                        gameId: row.id,
+                        err: (0, logger_1.toErrorMeta)(err),
+                    });
+                }
+            }
+            logger_1.logger.info('gameService.loadLiveGamesFromDb.complete', {
+                found: liveGames.length,
+                restored,
+            });
+        }
+        catch (err) {
+            logger_1.logger.warn('gameService.loadLiveGamesFromDb.failed', { err: (0, logger_1.toErrorMeta)(err) });
+        }
     }
 }
 exports.GameService = GameService;
