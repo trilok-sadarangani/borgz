@@ -40,15 +40,29 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Poker server is running' });
 });
 
+// Diagnostic endpoint to check SPA status
+app.get('/health/spa', (_req, res) => {
+  const spaClientDistPath = path.join(__dirname, '..', 'client-dist');
+  const spaIndexHtmlPath = path.join(spaClientDistPath, 'index.html');
+  const clientDistExists = fs.existsSync(spaClientDistPath);
+  const indexHtmlExists = fs.existsSync(spaIndexHtmlPath);
+
+  res.json({
+    status: clientDistExists && indexHtmlExists ? 'ok' : 'not_available',
+    clientDistPath: spaClientDistPath,
+    clientDistExists,
+    indexHtmlExists,
+    __dirname,
+    mode: clientDistExists && indexHtmlExists ? 'spa' : 'api-only',
+  });
+});
+
 // API routes
 app.use('/api/games', gameRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/stats', statsRoutes);
-
-// Centralized error handler (for any uncaught sync/async errors in routes/middleware)
-app.use(errorHandler);
 
 // ============================================================================
 // Static file serving for web client (SPA)
@@ -57,8 +71,18 @@ app.use(errorHandler);
 // This enables a single deployment that handles both API and frontend.
 const clientDistPath = path.join(__dirname, '..', 'client-dist');
 const indexHtmlPath = path.join(clientDistPath, 'index.html');
+const clientDistExists = fs.existsSync(clientDistPath);
+const indexHtmlExists = fs.existsSync(indexHtmlPath);
 
-if (fs.existsSync(clientDistPath)) {
+logger.info('spa.init', {
+  clientDistPath,
+  indexHtmlPath,
+  clientDistExists,
+  indexHtmlExists,
+  __dirname,
+});
+
+if (clientDistExists && indexHtmlExists) {
   logger.info('spa.serving', { path: clientDistPath });
 
   // Serve static assets (JS, CSS, images, etc.)
@@ -74,11 +98,28 @@ if (fs.existsSync(clientDistPath)) {
     return res.sendFile(indexHtmlPath);
   });
 } else {
-  logger.info('spa.notFound', {
-    path: clientDistPath,
-    note: 'Client dist not found - running API-only mode',
+  logger.warn('spa.notFound', {
+    clientDistPath,
+    indexHtmlPath,
+    clientDistExists,
+    indexHtmlExists,
+    note: 'Client dist not found - running API-only mode. SPA routes will 404.',
+  });
+
+  // Add a fallback for non-API routes when client isn't available
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    return res.status(404).json({
+      error: 'Not found',
+      message: 'Web client not available. This server is running in API-only mode.',
+    });
   });
 }
+
+// Centralized error handler (for any uncaught sync/async errors in routes/middleware)
+app.use(errorHandler);
 
 // Socket.io connection handling
 setupGameSocket(io);
