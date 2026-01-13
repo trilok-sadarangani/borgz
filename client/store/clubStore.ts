@@ -38,8 +38,12 @@ export const useClubStore = create<ClubState>((set, get) => ({
       });
       if (!res.success) {
         const errorMsg = res.error || 'Failed to load clubs';
-        // Check for token expiration
-        if (errorMsg.includes('exp') && errorMsg.includes('claim')) {
+        // Check for token expiration or invalid token (server restart clears sessions)
+        if (
+          errorMsg.includes('exp') && errorMsg.includes('claim') ||
+          errorMsg.includes('Invalid or expired token') ||
+          errorMsg.includes('Missing Authorization')
+        ) {
           set({ loading: false, error: 'SESSION_EXPIRED' });
           return;
         }
@@ -49,8 +53,12 @@ export const useClubStore = create<ClubState>((set, get) => ({
       set({ loading: false, clubs: res.clubs, error: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load clubs';
-      // Check for token expiration
-      if (msg.includes('exp') && msg.includes('claim')) {
+      // Check for token expiration or invalid token
+      if (
+        msg.includes('exp') && msg.includes('claim') ||
+        msg.includes('Invalid or expired token') ||
+        msg.includes('Missing Authorization')
+      ) {
         set({ loading: false, error: 'SESSION_EXPIRED' });
         return;
       }
