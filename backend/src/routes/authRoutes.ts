@@ -5,9 +5,20 @@ import { requireAuth } from '../middleware/requireAuth';
 const router = Router();
 
 function seedAuthDisabled(): boolean {
-  const explicit = String(process.env.DISABLE_SEED_AUTH || '').toLowerCase() === 'true';
-  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
-  return explicit || isProd;
+  // Explicit disable always wins
+  if (String(process.env.DISABLE_SEED_AUTH || '').toLowerCase() === 'true') {
+    return true;
+  }
+
+  // Explicit enable (for staging) always wins
+  if (String(process.env.ENABLE_SEED_AUTH || '').toLowerCase() === 'true') {
+    return false;
+  }
+
+  // By default: enabled in development/staging, disabled in production
+  const env = String(process.env.NODE_ENV || '').toLowerCase();
+  const allowedEnvs = ['development', 'staging', 'test', ''];
+  return !allowedEnvs.includes(env);
 }
 
 /**
