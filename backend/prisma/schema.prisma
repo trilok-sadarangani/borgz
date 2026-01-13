@@ -86,6 +86,10 @@ model Game {
   // Community cards (stored as JSON array)
   communityCards Json? // Card[]
 
+  // Full engine snapshot for live game resume (null when game is finished)
+  // Contains: state, deck, lastRaise, closingActionIndex, handStartedAt, handStartStacksByPlayerId
+  snapshot Json?
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   finishedAt DateTime?

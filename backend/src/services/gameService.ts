@@ -1,4 +1,4 @@
-import { GameEngine } from '../game/engine';
+import { GameEngine, EngineSnapshot } from '../game/engine';
 import { GameState, GameSettings } from '../types';
 import { TexasHoldem, createDefaultTexasHoldemSettings } from '../game/variants/texasHoldem';
 import { generateGameCode, isValidGameCode } from '../utils/gameCode';
@@ -6,6 +6,11 @@ import { validateGameSettings } from '../utils/validateSettings';
 import { gameHistoryService } from './gameHistoryService';
 import { dbPersistenceService } from './dbPersistenceService';
 import { logger, toErrorMeta } from '../utils/logger';
+import { getPrisma } from '../utils/prisma';
+
+function isDbEnabled(): boolean {
+  return String(process.env.ENABLE_DB_PERSISTENCE || '').toLowerCase() === 'true';
+}
 
 /**
  * Manages active game instances
@@ -173,6 +178,83 @@ export class GameService {
    */
   gameCodeExists(code: string): boolean {
     return this.gameCodes.has(code);
+  }
+
+  /**
+   * Loads live games from the database and restores them into memory.
+   * Called at server startup to resume games that were active before restart.
+   */
+  async loadLiveGamesFromDb(): Promise<void> {
+    if (!isDbEnabled()) {
+      logger.info('gameService.loadLiveGamesFromDb.skipped', { reason: 'DB persistence disabled' });
+      return;
+    }
+
+    try {
+      const prisma = getPrisma();
+      // Query games that haven't finished - we'll filter for non-null snapshots in JS
+      const liveGames = await prisma.game.findMany({
+        where: {
+          finishedAt: null,
+        },
+      });
+
+      let restored = 0;
+      for (const row of liveGames) {
+        try {
+          // Skip games without a snapshot
+          if (!row.snapshot) continue;
+          const snapshot = row.snapshot as unknown as EngineSnapshot;
+          if (!snapshot || !snapshot.state) {
+            logger.warn('gameService.loadLiveGamesFromDb.invalidSnapshot', { gameId: row.id });
+            continue;
+          }
+
+          // Restore the game engine from the snapshot
+          const engine = TexasHoldem.fromSnapshot(snapshot);
+          const state = engine.getState();
+
+          // Register in memory
+          this.games.set(row.id, engine);
+          this.gameCodes.set(state.code.toUpperCase(), row.id);
+          this.gameMeta.set(row.id, {
+            clubId: row.clubId || undefined,
+            createdAt: row.createdAt.getTime(),
+          });
+
+          // Also register in history service so stats/history work
+          gameHistoryService.registerGame({
+            gameId: row.id,
+            code: state.code,
+            clubId: row.clubId || undefined,
+            variant: state.variant,
+            settings: state.settings,
+            createdAt: state.createdAt,
+            endedAt: undefined,
+          });
+
+          restored += 1;
+          logger.info('gameService.loadLiveGamesFromDb.restored', {
+            gameId: row.id,
+            code: state.code,
+            phase: state.phase,
+            playerCount: state.players.length,
+          });
+        } catch (err) {
+          logger.warn('gameService.loadLiveGamesFromDb.restoreFailed', {
+            gameId: row.id,
+            err: toErrorMeta(err),
+          });
+        }
+      }
+
+      logger.info('gameService.loadLiveGamesFromDb.complete', {
+        found: liveGames.length,
+        restored,
+      });
+    } catch (err) {
+      logger.warn('gameService.loadLiveGamesFromDb.failed', { err: toErrorMeta(err) });
+    }
   }
 }
 

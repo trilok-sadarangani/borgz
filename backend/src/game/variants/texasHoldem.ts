@@ -1,5 +1,5 @@
 import { GameSettings } from '../../types';
-import { GameEngine } from '../engine';
+import { GameEngine, EngineSnapshot } from '../engine';
 import { validateGameSettings } from '../../utils/validateSettings';
 
 /**
@@ -24,6 +24,17 @@ export class TexasHoldem extends GameEngine {
       throw new Error(validation.error || 'Invalid game settings');
     }
     return true;
+  }
+
+  /**
+   * Restores a TexasHoldem game from a snapshot.
+   * Used to resume live games after server restart.
+   */
+  static fromSnapshot(snapshot: EngineSnapshot): TexasHoldem {
+    // Use the parent class's fromSnapshot, then set the prototype to TexasHoldem
+    const engine = GameEngine.fromSnapshot(snapshot);
+    Object.setPrototypeOf(engine, TexasHoldem.prototype);
+    return engine as TexasHoldem;
   }
 }
 

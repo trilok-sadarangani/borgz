@@ -3,6 +3,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import gameRoutes from './routes/gameRoutes';
 import authRoutes from './routes/authRoutes';
 import clubRoutes from './routes/clubRoutes';
@@ -13,6 +15,7 @@ import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import { logger, toErrorMeta } from './utils/logger';
 import { clubService } from './services/clubService';
+import { gameService } from './services/gameService';
 
 dotenv.config();
 
@@ -47,6 +50,36 @@ app.use('/api/stats', statsRoutes);
 // Centralized error handler (for any uncaught sync/async errors in routes/middleware)
 app.use(errorHandler);
 
+// ============================================================================
+// Static file serving for web client (SPA)
+// ============================================================================
+// In production, serve the built Expo web client from the 'client-dist' folder.
+// This enables a single deployment that handles both API and frontend.
+const clientDistPath = path.join(__dirname, '..', 'client-dist');
+const indexHtmlPath = path.join(clientDistPath, 'index.html');
+
+if (fs.existsSync(clientDistPath)) {
+  logger.info('spa.serving', { path: clientDistPath });
+
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use(express.static(clientDistPath));
+
+  // SPA fallback: serve index.html for all non-API routes
+  // This allows client-side routing to work (e.g., /clubs, /login, etc.)
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes or socket.io
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    return res.sendFile(indexHtmlPath);
+  });
+} else {
+  logger.info('spa.notFound', {
+    path: clientDistPath,
+    note: 'Client dist not found - running API-only mode',
+  });
+}
+
 // Socket.io connection handling
 setupGameSocket(io);
 
@@ -70,5 +103,10 @@ httpServer.listen(PORT, () => {
 // Do NOT block startup if DB is down; routes will still work in in-memory mode.
 void clubService.loadFromDb().catch((err) => {
   logger.warn('clubService.loadFromDb.failed', { err: toErrorMeta(err) });
+});
+
+// Restore live games from DB snapshots so they can be resumed after restart.
+void gameService.loadLiveGamesFromDb().catch((err) => {
+  logger.warn('gameService.loadLiveGamesFromDb.failed', { err: toErrorMeta(err) });
 });
 

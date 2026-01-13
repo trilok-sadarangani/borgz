@@ -1,9 +1,11 @@
+import { Prisma } from '@prisma/client';
 import { getPrisma } from '../utils/prisma';
 import { GameSettings, PokerVariant } from '../types';
 import { StoredHand } from './gameHistoryService';
 import { playerService } from './playerService';
 import { clubService } from './clubService';
 import { playerStatsService } from './statsService';
+import { EngineSnapshot } from '../game/engine';
 
 function isEnabled(): boolean {
   return String(process.env.ENABLE_DB_PERSISTENCE || '').toLowerCase() === 'true';
@@ -172,12 +174,41 @@ export class DbPersistenceService {
     });
   }
 
+  /**
+   * Persists a snapshot of the live game state for resume after restart.
+   * Called after every state-changing action.
+   */
+  async persistGameSnapshot(gameId: string, snapshot: EngineSnapshot): Promise<void> {
+    if (!isEnabled()) return;
+    const prisma = getPrisma();
+    await prisma.game.update({
+      where: { id: gameId },
+      data: {
+        snapshot: snapshot as unknown as object,
+        phase: snapshot.state.phase,
+        pot: snapshot.state.pot,
+        currentBet: snapshot.state.currentBet,
+        dealerPosition: snapshot.state.dealerPosition,
+        smallBlindPosition: snapshot.state.smallBlindPosition,
+        bigBlindPosition: snapshot.state.bigBlindPosition,
+        activePlayerIndex: snapshot.state.activePlayerIndex,
+        communityCards: snapshot.state.communityCards as unknown as object,
+      },
+    });
+  }
+
   async persistGameEnded(gameId: string, endedAtMs: number): Promise<void> {
     if (!isEnabled()) return;
     const prisma = getPrisma();
-    await prisma.game.updateMany({
+    // Use update instead of updateMany so we can set the snapshot to Prisma.JsonNull
+    await prisma.game.update({
       where: { id: gameId },
-      data: { finishedAt: new Date(endedAtMs), phase: 'finished' },
+      data: {
+        finishedAt: new Date(endedAtMs),
+        phase: 'finished',
+        // Clear the snapshot so this game won't be loaded on next restart
+        snapshot: Prisma.JsonNull,
+      },
     });
   }
 

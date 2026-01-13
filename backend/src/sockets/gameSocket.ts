@@ -119,8 +119,13 @@ export function setupGameSocket(io: Server): void {
 
         game.processPlayerAction(socket.playerId, data.action, data.amount);
 
-        // If the hand just finished, persist a snapshot for history.
+        // Persist snapshot for live game resume
         const state = game.getState();
+        void dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+          slog.warn('db.persistGameSnapshot.failed', { err: toErrorMeta(err) });
+        });
+
+        // If the hand just finished, persist a snapshot for history.
         if (state.phase === 'finished' && state.lastHandResult) {
           const stacksStartByPlayerId = game.getHandStartStacksByPlayerId?.() || undefined;
           const stacksEndByPlayerId: Record<string, number> = {};
@@ -212,6 +217,13 @@ export function setupGameSocket(io: Server): void {
         }
 
         game.startGame(socket.playerId);
+
+        // Persist snapshot for live game resume
+        const state = game.getState();
+        void dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+          slog.warn('db.persistGameSnapshot.failed', { err: toErrorMeta(err) });
+        });
+
         await emitStatesForGame(socket.gameCode);
         slog.info('socket.startGame.success');
       } catch (error) {
@@ -242,6 +254,13 @@ export function setupGameSocket(io: Server): void {
         }
 
         game.nextHand(socket.playerId);
+
+        // Persist snapshot for live game resume
+        const state = game.getState();
+        void dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+          slog.warn('db.persistGameSnapshot.failed', { err: toErrorMeta(err) });
+        });
+
         await emitStatesForGame(socket.gameCode);
         slog.info('socket.nextHand.success');
       } catch (error) {
@@ -271,6 +290,13 @@ export function setupGameSocket(io: Server): void {
         }
         const amount = Number(data?.amount);
         game.rebuy(socket.playerId, amount);
+
+        // Persist snapshot for live game resume
+        const state = game.getState();
+        void dbPersistenceService.persistGameSnapshot(state.id, game.getSnapshot()).catch((err) => {
+          slog.warn('db.persistGameSnapshot.failed', { err: toErrorMeta(err) });
+        });
+
         await emitStatesForGame(socket.gameCode);
         slog.info('socket.rebuy.success', { amount });
       } catch (error) {

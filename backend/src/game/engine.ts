@@ -7,6 +7,19 @@ import {
   PlayerAction,
   GameAction,
 } from '../types';
+
+/**
+ * Snapshot of the full engine state for persistence.
+ * Used to save/restore live games across server restarts.
+ */
+export interface EngineSnapshot {
+  state: GameState;
+  deck: Card[];
+  lastRaise: number;
+  closingActionIndex: number;
+  handStartedAt: number;
+  handStartStacksByPlayerId: Record<string, number>;
+}
 import { createDeck, shuffleDeck, dealCard, dealCards } from './utils/cards';
 import { evaluateHand, compareHands, HandResult } from './utils/handEvaluation';
 import {
@@ -771,6 +784,39 @@ export class GameEngine {
       };
     });
     return state;
+  }
+
+  /**
+   * Serializes the full engine state for persistence.
+   * Used to save live games to the database for resume after restart.
+   */
+  getSnapshot(): EngineSnapshot {
+    return {
+      state: JSON.parse(JSON.stringify(this.state)), // Deep clone to avoid mutation
+      deck: [...this.deck],
+      lastRaise: this.lastRaise,
+      closingActionIndex: this.closingActionIndex,
+      handStartedAt: this.handStartedAt,
+      handStartStacksByPlayerId: { ...this.handStartStacksByPlayerId },
+    };
+  }
+
+  /**
+   * Restores engine state from a snapshot.
+   * Used to resume live games after server restart.
+   */
+  static fromSnapshot(snapshot: EngineSnapshot): GameEngine {
+    // Create a new instance without calling the normal constructor
+    const engine = Object.create(GameEngine.prototype) as GameEngine;
+    // Restore all private fields from the snapshot
+    (engine as unknown as { state: GameState }).state = snapshot.state;
+    (engine as unknown as { deck: Card[] }).deck = snapshot.deck;
+    (engine as unknown as { lastRaise: number }).lastRaise = snapshot.lastRaise;
+    (engine as unknown as { closingActionIndex: number }).closingActionIndex = snapshot.closingActionIndex;
+    (engine as unknown as { handStartedAt: number }).handStartedAt = snapshot.handStartedAt;
+    (engine as unknown as { handStartStacksByPlayerId: Record<string, number> }).handStartStacksByPlayerId =
+      snapshot.handStartStacksByPlayerId;
+    return engine;
   }
 }
 
