@@ -5,7 +5,7 @@ WORKDIR /app
 # Prisma engines require OpenSSL at runtime; install it in build too for safety.
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies first (better layer caching)
+# Install backend dependencies first (better layer caching)
 COPY backend/package-lock.json backend/package.json ./backend/
 WORKDIR /app/backend
 RUN npm ci
@@ -19,6 +19,40 @@ COPY shared/ ./shared/
 WORKDIR /app/backend
 RUN npm run db:generate
 RUN npm run build
+
+# ============================================================================
+# Build the web client (Expo)
+# ============================================================================
+FROM node:22-bookworm-slim AS client-build
+
+WORKDIR /app
+
+# Build args for client environment variables (passed from render.yaml or docker build)
+# These are inlined into the JS bundle at build time.
+ARG EXPO_PUBLIC_API_URL
+ARG EXPO_PUBLIC_AUTH0_DOMAIN
+ARG EXPO_PUBLIC_AUTH0_CLIENT_ID
+ARG EXPO_PUBLIC_AUTH0_AUDIENCE
+
+# Make build args available as env vars during the build
+ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
+ENV EXPO_PUBLIC_AUTH0_DOMAIN=$EXPO_PUBLIC_AUTH0_DOMAIN
+ENV EXPO_PUBLIC_AUTH0_CLIENT_ID=$EXPO_PUBLIC_AUTH0_CLIENT_ID
+ENV EXPO_PUBLIC_AUTH0_AUDIENCE=$EXPO_PUBLIC_AUTH0_AUDIENCE
+
+# Install client dependencies
+COPY client/package-lock.json client/package.json ./client/
+WORKDIR /app/client
+RUN npm ci
+
+# Copy client and shared sources
+WORKDIR /app
+COPY client/ ./client/
+COPY shared/ ./shared/
+
+# Build the Expo web client
+WORKDIR /app/client
+RUN npx expo export --platform web
 
 
 FROM node:22-bookworm-slim AS runtime
@@ -42,8 +76,11 @@ COPY backend/prisma.config.ts ./backend/prisma.config.ts
 WORKDIR /app/backend
 RUN npm run db:generate
 
-# Copy compiled output
+# Copy compiled backend output
 COPY --from=build /app/backend/dist ./dist
+
+# Copy the built web client (Expo export output)
+COPY --from=client-build /app/client/dist ./client-dist
 
 # Add container entrypoint (db push then start)
 COPY backend/docker/entrypoint.sh /usr/local/bin/entrypoint.sh

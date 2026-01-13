@@ -34,13 +34,21 @@ export function getApiBaseUrl(): string {
     typeof process !== 'undefined' ? (process.env.EXPO_PUBLIC_API_URL as string | undefined) : (undefined as string | undefined);
   if (envUrl) return envUrl;
 
-  // Web: use the current hostname (same machine) unless overridden by env.
+  // Web: check if we're in production (same-origin deployment) or development
   if (isWeb()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const host = (globalThis as any)?.location?.hostname as string | undefined;
-    // Match the current page scheme to avoid mixed-content errors (https page -> http API fetch).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const protocol = ((globalThis as any)?.location?.protocol as string | undefined) === 'https:' ? 'https' : 'http';
+    const location = (globalThis as any)?.location;
+    const host = location?.hostname as string | undefined;
+    const port = location?.port as string | undefined;
+    const protocol = (location?.protocol as string | undefined) === 'https:' ? 'https' : 'http';
+
+    // In production (no port or standard ports), use same-origin (empty string = relative URLs)
+    // This works when frontend and backend are served from the same server.
+    if (host && (!port || port === '443' || port === '80')) {
+      return '';  // Same-origin: use relative URLs like "/api/..."
+    }
+
+    // In development (e.g., localhost:8081), API is on port 3001
     if (host) return `${protocol}://${host}:3001`;
     return DEFAULT_API_BASE_URL;
   }

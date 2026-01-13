@@ -1,3 +1,4 @@
+/// <reference path="../types/express.d.ts" />
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger';

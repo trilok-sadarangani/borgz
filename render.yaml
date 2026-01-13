@@ -1,6 +1,8 @@
 # ===================
 # PRODUCTION SERVICES
 # ===================
+# NOTE: The backend now serves both the API and the web client (SPA).
+# This provides a single deployment with proper SPA routing support.
 services:
   - type: web
     name: borgz-backend
@@ -18,8 +20,9 @@ services:
         value: "true"
       - key: DISABLE_SEED_AUTH
         value: "true"
+      # CORS can be more permissive since frontend is same-origin, but keep for socket.io
       - key: CORS_ORIGIN
-        value: https://borgz-web.onrender.com
+        value: https://borgz-backend.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: borgz-db
@@ -30,23 +33,9 @@ services:
         value: api.borgz.com
       - key: AUTH0_ISSUER
         value: https://dev-hl2hhkyfntxf14em.us.auth0.com/
-
-  - type: web
-    name: borgz-web
-    runtime: static
-    rootDir: client
-    autoDeploy: true
-    buildCommand: npm ci && npx expo export --platform web
-    staticPublishPath: dist
-    envVars:
-      - key: EXPO_PUBLIC_API_URL
-        value: https://borgz-backend.onrender.com
-      - key: EXPO_PUBLIC_AUTH0_DOMAIN
-        value: dev-hl2hhkyfntxf14em.us.auth0.com
-      - key: EXPO_PUBLIC_AUTH0_CLIENT_ID
-        value: aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG
-      - key: EXPO_PUBLIC_AUTH0_AUDIENCE
-        value: api.borgz.com
+      # NOTE: Client env vars (EXPO_PUBLIC_*) are read from client/app.json at build time.
+      # The API URL uses same-origin detection (empty string = relative URLs).
+      # Auth0 config is read from app.json's expo.extra values.
 
   # =================
   # STAGING SERVICES
@@ -68,7 +57,7 @@ services:
       - key: DISABLE_SEED_AUTH
         value: "true"
       - key: CORS_ORIGIN
-        value: https://borgz-web-staging.onrender.com
+        value: https://borgz-backend-staging.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: borgz-db-staging
@@ -79,23 +68,9 @@ services:
         value: api.borgz.com
       - key: AUTH0_ISSUER
         value: https://dev-hl2hhkyfntxf14em.us.auth0.com/
-
-  - type: web
-    name: borgz-web-staging
-    runtime: static
-    rootDir: client
-    autoDeploy: true
-    buildCommand: npm ci && npx expo export --platform web
-    staticPublishPath: dist
-    envVars:
-      - key: EXPO_PUBLIC_API_URL
-        value: https://borgz-backend-staging.onrender.com
-      - key: EXPO_PUBLIC_AUTH0_DOMAIN
-        value: dev-hl2hhkyfntxf14em.us.auth0.com
-      - key: EXPO_PUBLIC_AUTH0_CLIENT_ID
-        value: aP8oDBwbFtJLSxJZOHQ1AUEdOgwHtKGG
-      - key: EXPO_PUBLIC_AUTH0_AUDIENCE
-        value: api.borgz.com
+      # NOTE: Client env vars (EXPO_PUBLIC_*) are read from client/app.json at build time.
+      # The API URL uses same-origin detection (empty string = relative URLs).
+      # Auth0 config is read from app.json's expo.extra values.
 
 # =========
 # DATABASES
