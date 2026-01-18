@@ -278,60 +278,30 @@ export function WebHomePage({ children }: WebHomePageProps) {
   const pathname = usePathname();
   const { logout } = useAuthStore();
 
-  // Determine active nav based on current path
-  const getActiveNav = () => {
-    if (pathname.includes('/clubs')) return 'Clubs';
-    if (pathname.includes('/profile')) return 'Games and Statistics';
-    if (pathname.includes('/plus')) return 'Plus';
-    if (pathname.includes('/game')) return 'Play';
-    return 'Play';
-  };
-
-  const handleNavClick = (item: NavItem) => {
-    router.push(item.route as any);
-  };
-
   const handleLogout = () => {
     logout();
     router.replace('/login');
   };
 
-  const handleProfile = () => {
-    router.push('/(tabs)/profile');
-  };
+  // Check if we're on the home/index page
+  const isHomePage = pathname === '/(tabs)' || pathname === '/';
 
   return (
     <View style={styles.container}>
       <AnimatedCardBackground />
       
-      {/* Navigation Bar */}
-      <View style={styles.navbar}>
-        {/* Logo - Left */}
-        <Pressable onPress={() => router.push('/(tabs)')}>
-          <Text style={styles.logo}>borgz</Text>
-        </Pressable>
+      {/* Only show navbar if NOT on home page */}
+      {!isHomePage && (
+        <View style={styles.navbar}>
+          {/* Back to home */}
+          <Pressable onPress={() => router.push('/(tabs)')}>
+            <Text style={styles.logo}>← borgz</Text>
+          </Pressable>
 
-        {/* Menu - Center */}
-        <View style={styles.navMenu}>
-          {NAV_ITEMS.map((item) => (
-            <Pressable
-              key={item.label}
-              style={styles.navItem}
-              onPress={() => handleNavClick(item)}
-            >
-              <Text style={[
-                styles.navText,
-                getActiveNav() === item.label && styles.navTextActive
-              ]}>
-                {item.label}
-              </Text>
-            </Pressable>
-          ))}
+          {/* User Avatar - Right */}
+          <UserDropdown onLogout={handleLogout} onProfile={() => router.push('/(tabs)/profile')} />
         </View>
-
-        {/* User Avatar - Right */}
-        <UserDropdown onLogout={handleLogout} onProfile={handleProfile} />
-      </View>
+      )}
 
       {/* Main Content Area */}
       <View style={styles.content}>

@@ -6,11 +6,12 @@ import { useAuthStore } from '../../store/authStore';
 import { GameSettingsForm } from '../../components/GameSettingsForm';
 import { BuyInModal } from '../../components/BuyInModal';
 import { GameSettings, GameState } from '../../../shared/types/game.types';
+import MagicBento from '../../components/MagicBento';
 
-// Web-specific hero component
+// Web-specific hero component with MagicBento navigation
 function WebHero() {
   const router = useRouter();
-  const { player } = useAuthStore();
+  const { player, logout } = useAuthStore();
   const gameStore = useGameStore();
   const [code, setCode] = useState('');
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -75,49 +76,277 @@ function WebHero() {
   };
 
   return (
-    <View style={webStyles.heroContainer}>
-      {gameStore.error && (
-        <Pressable onPress={() => useGameStore.setState({ error: null })}>
-          <Text style={webStyles.error}>{gameStore.error}</Text>
-        </Pressable>
-      )}
+    <>
+      <style>
+        {`
+          .bento-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100%;
+            position: relative;
+            z-index: 10;
+          }
+          
+          .bento-header {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            z-index: 100;
+          }
+          
+          .user-info {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+          }
+          
+          .logout-btn {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            padding: 8px 16px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+          }
+          
+          .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.5);
+          }
+          
+          .bento-logo {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            font-size: 36px;
+            font-weight: 900;
+            color: #fff;
+            letter-spacing: -1px;
+            z-index: 100;
+          }
+          
+          .join-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+          }
+          
+          .join-modal-content {
+            background: #1a1a2e;
+            border: 1px solid rgba(132, 0, 255, 0.3);
+            border-radius: 20px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 300px;
+          }
+          
+          .join-modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 1rem;
+          }
+          
+          .join-modal-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 16px;
+            color: #fff;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+          }
+          
+          .join-modal-buttons {
+            display: flex;
+            gap: 1rem;
+          }
+          
+          .join-modal-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+          }
+          
+          .join-modal-btn-primary {
+            background: #22c55e;
+            color: #fff;
+          }
+          
+          .join-modal-btn-primary:hover {
+            background: #16a34a;
+          }
+          
+          .join-modal-btn-secondary {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+          }
+          
+          .join-modal-btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+          }
+        `}
+      </style>
       
-      <View style={webStyles.buttonRow}>
-        <Pressable style={webStyles.quickPlayButton} onPress={handleQuickPlay} disabled={joiningGame}>
-          <Text style={webStyles.quickPlayButtonText}>
-            {joiningGame ? 'Loading...' : 'Quick Play'}
-          </Text>
-        </Pressable>
+      <div className="bento-wrapper">
+        <div className="bento-logo">borgz</div>
         
-        <Pressable 
-          style={webStyles.joinButton} 
-          onPress={() => setShowJoinModal(!showJoinModal)}
-        >
-          <Text style={webStyles.joinButtonText}>Join Game</Text>
-        </Pressable>
-      </View>
+        <div className="bento-header">
+          <div className="user-info">👋 {player?.name}</div>
+          <button className="logout-btn" onClick={() => { logout(); router.replace('/login'); }}>
+            Logout
+          </button>
+        </div>
 
-      {showJoinModal && (
-        <View style={webStyles.joinModal}>
-          <TextInput
-            value={code}
-            onChangeText={setCode}
-            placeholder="Enter game code"
-            placeholderTextColor="rgba(255,255,255,0.4)"
-            autoCapitalize="characters"
-            style={webStyles.codeInput}
+        <div className="card-grid">
+          <MagicBento
+            textAutoHide={true}
+            enableSpotlight
+            enableBorderGlow={true}
+            enableTilt
+            clickEffect
+            spotlightRadius={280}
+            particleCount={12}
+            glowColor="132, 0, 255"
+            title="Quick Play"
+            description="Start a game instantly with default settings"
+            onClick={handleQuickPlay}
           />
-          <Pressable 
-            style={webStyles.joinSubmitButton} 
-            onPress={handleJoinGame}
-            disabled={joiningGame}
-          >
-            <Text style={webStyles.joinSubmitText}>
-              {joiningGame ? '...' : 'Join'}
-            </Text>
-          </Pressable>
-        </View>
-      )}
+          
+          <MagicBento
+            textAutoHide={true}
+            enableSpotlight
+            enableBorderGlow={true}
+            enableTilt
+            clickEffect
+            spotlightRadius={280}
+            particleCount={12}
+            glowColor="34, 197, 94"
+            title="Join Game"
+            description="Enter a game code to join"
+            onClick={() => setShowJoinModal(true)}
+          />
+          
+          <MagicBento
+            textAutoHide={true}
+            enableSpotlight
+            enableBorderGlow={true}
+            enableTilt
+            clickEffect
+            spotlightRadius={280}
+            particleCount={12}
+            glowColor="59, 130, 246"
+            title="Clubs"
+            description="Manage your poker clubs and memberships"
+            onClick={() => router.push('/(tabs)/clubs')}
+          />
+          
+          <MagicBento
+            textAutoHide={true}
+            enableSpotlight
+            enableBorderGlow={true}
+            enableTilt
+            clickEffect
+            spotlightRadius={280}
+            particleCount={12}
+            glowColor="236, 72, 153"
+            title="Profile & Stats"
+            description="View your games and statistics"
+            onClick={() => router.push('/(tabs)/profile')}
+          />
+          
+          <MagicBento
+            textAutoHide={true}
+            enableSpotlight
+            enableBorderGlow={true}
+            enableTilt
+            clickEffect
+            spotlightRadius={280}
+            particleCount={12}
+            glowColor="251, 191, 36"
+            title="Coming Soon"
+            description="More features on the way"
+          />
+          
+          <MagicBento
+            textAutoHide={true}
+            enableSpotlight
+            enableBorderGlow={true}
+            enableTilt
+            clickEffect
+            spotlightRadius={280}
+            particleCount={12}
+            glowColor="168, 85, 247"
+            title="Plus"
+            description="Premium features and benefits"
+            onClick={() => router.push('/(tabs)/plus')}
+          />
+        </div>
+
+        {showJoinModal && (
+          <div className="join-modal-overlay" onClick={() => setShowJoinModal(false)}>
+            <div className="join-modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2 className="join-modal-title">Join Game</h2>
+              <input
+                type="text"
+                className="join-modal-input"
+                placeholder="Enter game code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                autoFocus
+              />
+              <div className="join-modal-buttons">
+                <button 
+                  className="join-modal-btn join-modal-btn-secondary"
+                  onClick={() => setShowJoinModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="join-modal-btn join-modal-btn-primary"
+                  onClick={() => {
+                    handleJoinGame();
+                    setShowJoinModal(false);
+                  }}
+                  disabled={joiningGame || !normalizedCode}
+                >
+                  {joiningGame ? 'Joining...' : 'Join'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <BuyInModal
         visible={showBuyInModal}
@@ -127,7 +356,7 @@ function WebHero() {
         onCancel={handleCancelBuyIn}
         loading={joiningGame}
       />
-    </View>
+    </>
   );
 }
 
@@ -136,76 +365,6 @@ const webStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
-  },
-  error: {
-    color: '#ef4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginBottom: 24,
-    fontSize: 14,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  quickPlayButton: {
-    backgroundColor: '#000',
-    paddingHorizontal: 48,
-    paddingVertical: 18,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  quickPlayButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  joinButton: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 32,
-    paddingVertical: 18,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  joinButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  joinModal: {
-    marginTop: 24,
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-  },
-  codeInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#fff',
-    width: 200,
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  joinSubmitButton: {
-    backgroundColor: '#22c55e',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  joinSubmitText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
   },
 });
 

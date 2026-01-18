@@ -8,6 +8,7 @@ import { getAuth0Config } from '../services/runtimeConfig';
 import { explainAuth0Failure } from '../../shared/auth0Diagnostics';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import Aurora from '../components/Aurora';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -63,65 +64,17 @@ function AnimatedBackground() {
     ],
   });
 
-  // For web, we'll use CSS animations instead for smoother performance
+  // For web, use the Aurora WebGL component for a stunning effect
   if (Platform.OS === 'web') {
     return (
-      <>
-        <style>
-          {`
-            @keyframes gradientShift {
-              0%, 100% { background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 50%, #f0f9ff 100%); }
-              20% { background: linear-gradient(135deg, #ecfeff 0%, #f0f9ff 50%, #faf5ff 100%); }
-              40% { background: linear-gradient(135deg, #f0f9ff 0%, #faf5ff 50%, #fff1f2 100%); }
-              60% { background: linear-gradient(135deg, #faf5ff 0%, #fff1f2 50%, #fef3c7 100%); }
-              80% { background: linear-gradient(135deg, #fff1f2 0%, #fef3c7 50%, #f0fdf4 100%); }
-            }
-            @keyframes glowPulse1 {
-              0%, 100% { background: rgba(34, 197, 94, 0.18); transform: translate(-50%, -50%) scale(1); }
-              25% { background: rgba(6, 182, 212, 0.18); transform: translate(-50%, -50%) scale(1.1); }
-              50% { background: rgba(139, 92, 246, 0.18); transform: translate(-50%, -50%) scale(0.95); }
-              75% { background: rgba(236, 72, 153, 0.18); transform: translate(-50%, -50%) scale(1.05); }
-            }
-            @keyframes glowPulse2 {
-              0%, 100% { background: rgba(168, 85, 247, 0.15); transform: translate(50%, 50%) scale(1); }
-              25% { background: rgba(34, 197, 94, 0.15); transform: translate(50%, 50%) scale(1.1); }
-              50% { background: rgba(6, 182, 212, 0.15); transform: translate(50%, 50%) scale(0.9); }
-              75% { background: rgba(251, 191, 36, 0.15); transform: translate(50%, 50%) scale(1.05); }
-            }
-            .animated-bg {
-              position: absolute;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              animation: gradientShift 20s ease-in-out infinite;
-            }
-            .glow1 {
-              position: absolute;
-              top: 10%;
-              left: 20%;
-              width: 500px;
-              height: 500px;
-              border-radius: 50%;
-              filter: blur(100px);
-              animation: glowPulse1 15s ease-in-out infinite;
-            }
-            .glow2 {
-              position: absolute;
-              bottom: 10%;
-              right: 20%;
-              width: 400px;
-              height: 400px;
-              border-radius: 50%;
-              filter: blur(100px);
-              animation: glowPulse2 18s ease-in-out infinite;
-            }
-          `}
-        </style>
-        <div className="animated-bg" />
-        <div className="glow1" />
-        <div className="glow2" />
-      </>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#0a0a0a' }}>
+        <Aurora
+          colorStops={["#6b3c72", "#ae9bee", "#3729ff"]}
+          blend={0.5}
+          amplitude={1.0}
+          speed={1}
+        />
+      </div>
     );
   }
 
