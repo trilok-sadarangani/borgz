@@ -1,228 +1,8 @@
-import { useEffect, useRef, useState, ReactNode, createContext, useContext } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, Dimensions } from 'react-native';
+import { useState, ReactNode } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
-
-// Store cards in module scope so they persist across re-renders
-let cachedCards: CardData[] | null = null;
-let cachedDimensions = { width: 0, height: 0 };
-
-const SUITS = ['spades', 'hearts', 'clubs', 'diamonds'] as const;
-const VALUES = ['A', 'K', 'Q', 'J', '10', '9', '8', '7'];
-const SUIT_SYMBOLS: Record<string, string> = {
-  spades: '♠',
-  hearts: '♥',
-  clubs: '♣',
-  diamonds: '♦',
-};
-
-type CardData = {
-  id: number;
-  suit: typeof SUITS[number];
-  value: string;
-  x: number;
-  y: number;
-  rotation: number;
-  scale: number;
-  delay: number;
-};
-
-function generateCards(count: number, width: number, height: number): CardData[] {
-  const cards: CardData[] = [];
-  const cols = Math.ceil(Math.sqrt(count * (width / height)));
-  const rows = Math.ceil(count / cols);
-  const cellWidth = width / cols;
-  const cellHeight = height / rows;
-
-  for (let i = 0; i < count; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    cards.push({
-      id: i,
-      suit: SUITS[Math.floor(Math.random() * SUITS.length)],
-      value: VALUES[Math.floor(Math.random() * VALUES.length)],
-      x: col * cellWidth + cellWidth / 2 + (Math.random() - 0.5) * cellWidth * 0.5,
-      y: row * cellHeight + cellHeight / 2 + (Math.random() - 0.5) * cellHeight * 0.5,
-      rotation: (Math.random() - 0.5) * 30,
-      scale: 0.6 + Math.random() * 0.4,
-      delay: i * 50,
-    });
-  }
-  return cards;
-}
-
-function FloatingCard({ card, floatAnim }: { card: CardData; floatAnim: Animated.Value }) {
-  const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
-  const color = isRed ? '#ef4444' : '#1a1a2e';
-
-  const floatY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, Math.sin(card.id * 0.5) * 15],
-  });
-
-  const floatRotate = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [`${card.rotation}deg`, `${card.rotation + Math.sin(card.id) * 3}deg`],
-  });
-
-  return (
-    <Animated.View
-      style={[
-        styles.floatingCard,
-        {
-          left: card.x - 40,
-          top: card.y - 56,
-          transform: [
-            { translateY: floatY },
-            { rotate: floatRotate },
-            { scale: card.scale },
-          ],
-        },
-      ]}
-    >
-      <View style={styles.cardCorner}>
-        <Text style={[styles.cardValue, { color }]}>{card.value}</Text>
-        <Text style={[styles.cardSuit, { color }]}>{SUIT_SYMBOLS[card.suit]}</Text>
-      </View>
-      <Text style={[styles.cardCenter, { color }]}>{SUIT_SYMBOLS[card.suit]}</Text>
-    </Animated.View>
-  );
-}
-
-function AnimatedCardBackground() {
-  const { width, height } = Dimensions.get('window');
-  
-  // Use cached cards if dimensions haven't changed significantly
-  const [cards] = useState(() => {
-    if (cachedCards && 
-        Math.abs(cachedDimensions.width - width) < 100 && 
-        Math.abs(cachedDimensions.height - height) < 100) {
-      return cachedCards;
-    }
-    cachedCards = generateCards(24, width, height);
-    cachedDimensions = { width, height };
-    return cachedCards;
-  });
-  
-  const floatAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [floatAnim]);
-
-  if (Platform.OS === 'web') {
-    return (
-      <>
-        <style>
-          {`
-            @keyframes cardFloat {
-              0%, 100% { transform: translateY(0) rotate(var(--rotation)); }
-              50% { transform: translateY(-15px) rotate(calc(var(--rotation) + 3deg)); }
-            }
-            @keyframes bgGradient {
-              0%, 100% { background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f172a 100%); }
-              50% { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0a0a0a 100%); }
-            }
-            .card-bg {
-              position: absolute;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              animation: bgGradient 20s ease-in-out infinite;
-              overflow: hidden;
-            }
-            .floating-card {
-              position: absolute;
-              width: 80px;
-              height: 112px;
-              background: rgba(255, 255, 255, 0.03);
-              border: 1px solid rgba(255, 255, 255, 0.08);
-              border-radius: 8px;
-              backdrop-filter: blur(4px);
-              animation: cardFloat 4s ease-in-out infinite;
-              display: flex;
-              flex-direction: column;
-              padding: 8px;
-            }
-            .card-corner {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-            }
-            .card-value {
-              font-size: 14px;
-              font-weight: 900;
-              line-height: 1;
-            }
-            .card-suit-small {
-              font-size: 12px;
-              font-weight: 700;
-            }
-            .card-center {
-              position: absolute;
-              top: 50%;
-              left: 50%;
-              transform: translate(-50%, -50%);
-              font-size: 28px;
-              opacity: 0.15;
-            }
-          `}
-        </style>
-        <div className="card-bg">
-          {cards.map((card) => {
-            const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
-            const color = isRed ? '#ef4444' : 'rgba(255,255,255,0.7)';
-            return (
-              <div
-                key={card.id}
-                className="floating-card"
-                style={{
-                  left: card.x - 40,
-                  top: card.y - 56,
-                  '--rotation': `${card.rotation}deg`,
-                  animationDelay: `${card.delay}ms`,
-                  transform: `scale(${card.scale})`,
-                } as any}
-              >
-                <div className="card-corner">
-                  <span className="card-value" style={{ color }}>{card.value}</span>
-                  <span className="card-suit-small" style={{ color }}>{SUIT_SYMBOLS[card.suit]}</span>
-                </div>
-                <span className="card-center" style={{ color }}>{SUIT_SYMBOLS[card.suit]}</span>
-              </div>
-            );
-          })}
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <View style={styles.cardBackground}>
-      {cards.map((card) => (
-        <FloatingCard key={card.id} card={card} floatAnim={floatAnim} />
-      ))}
-    </View>
-  );
-}
+import Aurora from './Aurora';
 
 function UserDropdown({ onLogout, onProfile }: { onLogout: () => void; onProfile: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -257,18 +37,6 @@ function UserDropdown({ onLogout, onProfile }: { onLogout: () => void; onProfile
   );
 }
 
-type NavItem = {
-  label: string;
-  route: string;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Play', route: '/(tabs)' },
-  { label: 'Clubs', route: '/(tabs)/clubs' },
-  { label: 'Games and Statistics', route: '/(tabs)/profile' },
-  { label: 'Plus', route: '/(tabs)/plus' },
-];
-
 type WebHomePageProps = {
   children?: ReactNode;
 };
@@ -288,7 +56,17 @@ export function WebHomePage({ children }: WebHomePageProps) {
 
   return (
     <View style={styles.container}>
-      <AnimatedCardBackground />
+      {/* Aurora background */}
+      {Platform.OS === 'web' && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#0a0a0a', zIndex: 0 }}>
+          <Aurora
+            colorStops={["#6b3c72", "#ae9bee", "#3729ff"]}
+            blend={0.5}
+            amplitude={1.0}
+            speed={1}
+          />
+        </div>
+      )}
       
       {/* Only show navbar if NOT on home page */}
       {!isHomePage && (
@@ -316,38 +94,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
-  },
-  cardBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0a0a0a',
-  },
-  floatingCard: {
-    position: 'absolute',
-    width: 80,
-    height: 112,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 8,
-    padding: 8,
-  },
-  cardCorner: {
-    alignItems: 'center',
-  },
-  cardValue: {
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  cardSuit: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  cardCenter: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    fontSize: 28,
-    opacity: 0.15,
   },
   navbar: {
     flexDirection: 'row',

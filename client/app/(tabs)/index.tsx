@@ -7,6 +7,7 @@ import { GameSettingsForm } from '../../components/GameSettingsForm';
 import { BuyInModal } from '../../components/BuyInModal';
 import { GameSettings, GameState } from '../../../shared/types/game.types';
 import MagicBento from '../../components/MagicBento';
+import Aurora from '../../components/Aurora';
 
 // Web-specific hero component with MagicBento navigation
 function WebHero() {
@@ -77,6 +78,16 @@ function WebHero() {
 
   return (
     <>
+      {/* Aurora background */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#0a0a0a', zIndex: 0 }}>
+        <Aurora
+          colorStops={["#6b3c72", "#ae9bee", "#3729ff"]}
+          blend={0.5}
+          amplitude={1.0}
+          speed={1}
+        />
+      </div>
+
       <style>
         {`
           .bento-wrapper {
