@@ -7,6 +7,7 @@ import {
   TextInput,
   Keyboard,
   Platform,
+  Modal,
 } from 'react-native';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
@@ -15,19 +16,23 @@ import { GameChat } from '../../components/GameChat';
 
 const isWeb = Platform.OS === 'web';
 
-// Seat positions around an oval table (percentages from center)
-// Arranged for up to 10 players like Poker Now
+// Seat positions for a horizontal table layout (percentages from center)
+// Bottom row and top row for a more horizontal, landscape-oriented table
 const SEAT_POSITIONS = [
-  { x: 0, y: 45 }, // bottom center (seat 1)
-  { x: -35, y: 38 }, // bottom left (seat 2)
-  { x: -48, y: 15 }, // left upper (seat 3)
-  { x: -48, y: -15 }, // left lower (seat 4)
-  { x: -35, y: -38 }, // top left (seat 5)
-  { x: 0, y: -45 }, // top center (seat 6)
-  { x: 35, y: -38 }, // top right (seat 7)
-  { x: 48, y: -15 }, // right upper (seat 8)
-  { x: 48, y: 15 }, // right lower (seat 9)
-  { x: 35, y: 38 }, // bottom right (seat 10)
+  { x: 0, y: 35 }, // bottom center (seat 1)
+  { x: -20, y: 35 }, // bottom left-center (seat 2)
+  { x: -40, y: 30 }, // bottom left (seat 3)
+  { x: -50, y: 10 }, // left (seat 4)
+  { x: -50, y: -10 }, // left upper (seat 5)
+  { x: -40, y: -30 }, // top left (seat 6)
+  { x: -20, y: -35 }, // top left-center (seat 7)
+  { x: 0, y: -35 }, // top center (seat 8)
+  { x: 20, y: -35 }, // top right-center (seat 9)
+  { x: 40, y: -30 }, // top right (seat 10)
+  { x: 50, y: -10 }, // right upper (seat 11)
+  { x: 50, y: 10 }, // right (seat 12)
+  { x: 40, y: 30 }, // bottom right (seat 13)
+  { x: 20, y: 35 }, // bottom right-center (seat 14)
 ];
 
 function suitFromChar(s: string): CardSuit {
@@ -45,6 +50,7 @@ export default function GameScreen() {
   const [raiseAmount, setRaiseAmount] = useState('100');
   const [rebuyAmount, setRebuyAmount] = useState('1000');
   const [showHistory, setShowHistory] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const me = useMemo(
     () => (player ? game?.players.find((p) => p.id === player.id) || null : null),
@@ -99,6 +105,38 @@ export default function GameScreen() {
       return '';
     };
   }, [game]);
+
+  // Determine which actions are available based on game state
+  const availableActions = useMemo(() => {
+    if (!game || !me || !isMyTurn || !me.cards || me.cards.length === 0) {
+      return {
+        canFold: false,
+        canCheck: false,
+        canCall: false,
+        canRaise: false,
+        canAllIn: false,
+      };
+    }
+
+    const hasBet = game.currentBet > 0;
+    const myCurrentBet = me.currentBet;
+    const needToCall = hasBet && myCurrentBet < game.currentBet;
+
+    return {
+      canFold: hasBet, // Only show fold if there's a bet to act on
+      canCheck: !needToCall, // Can check if no bet or already matched
+      canCall: needToCall, // Can call only if there's a bet to match
+      canRaise: true, // Can always raise (will be limited by stack)
+      canAllIn: me.stack > 0, // Can go all-in if have chips
+    };
+  }, [game, me, isMyTurn]);
+
+  // Calculate raise amount slider value
+  const raiseSliderValue = useMemo(() => {
+    const amt = Number(raiseAmount);
+    if (!Number.isFinite(amt) || !me) return 0;
+    return Math.min(amt, me.stack);
+  }, [raiseAmount, me]);
 
   // Arrange players in seat positions
   const seatedPlayers = useMemo(() => {
@@ -307,54 +345,89 @@ export default function GameScreen() {
           ) : null}
 
           <View style={styles.actionRow}>
-            <Pressable
-              style={[styles.actionButton, styles.foldButton]}
-              onPress={() => act('fold')}
-            >
-              <Text style={styles.actionButtonText}>Fold</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.actionButton, styles.checkButton]}
-              onPress={() => act('check')}
-            >
-              <Text style={styles.actionButtonText}>Check</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.actionButton, styles.callButton]}
-              onPress={() => act('call')}
-            >
-              <Text style={styles.actionButtonText}>Call</Text>
-            </Pressable>
-            <View style={styles.raiseGroup}>
-              <TextInput
-                value={raiseAmount}
-                onChangeText={setRaiseAmount}
-                placeholder="Amt"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-                keyboardType="numeric"
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={() => Keyboard.dismiss()}
-                style={styles.raiseInput}
-              />
+            {availableActions.canFold && (
               <Pressable
-                style={[styles.actionButton, styles.raiseButton]}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  const amt = Number(raiseAmount);
-                  if (!Number.isFinite(amt)) return;
-                  act('raise', amt);
-                }}
+                style={[styles.actionButton, styles.foldButton]}
+                onPress={() => act('fold')}
               >
-                <Text style={styles.actionButtonText}>Raise</Text>
+                <Text style={styles.actionButtonText}>Fold</Text>
               </Pressable>
-            </View>
-            <Pressable
-              style={[styles.actionButton, styles.allInButton]}
-              onPress={() => act('all-in')}
-            >
-              <Text style={styles.actionButtonText}>All-in</Text>
-            </Pressable>
+            )}
+            {availableActions.canCheck && (
+              <Pressable
+                style={[styles.actionButton, styles.checkButton]}
+                onPress={() => act('check')}
+              >
+                <Text style={styles.actionButtonText}>Check</Text>
+              </Pressable>
+            )}
+            {availableActions.canCall && (
+              <Pressable
+                style={[styles.actionButton, styles.callButton]}
+                onPress={() => act('call')}
+              >
+                <Text style={styles.actionButtonText}>
+                  Call {game ? game.currentBet - (me?.currentBet || 0) : ''}
+                </Text>
+              </Pressable>
+            )}
+            {availableActions.canRaise && (
+              <View style={styles.raiseGroup}>
+                <View style={styles.raiseControls}>
+                  <TextInput
+                    value={raiseAmount}
+                    onChangeText={(val) => {
+                      const num = Number(val);
+                      if (me && Number.isFinite(num)) {
+                        setRaiseAmount(Math.min(num, me.stack).toString());
+                      } else {
+                        setRaiseAmount(val);
+                      }
+                    }}
+                    placeholder="Amount"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    returnKeyType="done"
+                    blurOnSubmit
+                    onSubmitEditing={() => Keyboard.dismiss()}
+                    style={styles.raiseInput}
+                  />
+                  {isWeb && me && (
+                    <input
+                      type="range"
+                      min={game?.currentBet || 0}
+                      max={me.stack}
+                      value={raiseSliderValue}
+                      onChange={(e) => setRaiseAmount(e.target.value)}
+                      aria-label="Raise amount"
+                      style={{
+                        width: '120px',
+                        accentColor: '#f59e0b',
+                      }}
+                    />
+                  )}
+                </View>
+                <Pressable
+                  style={[styles.actionButton, styles.raiseButton]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    const amt = Number(raiseAmount);
+                    if (!Number.isFinite(amt)) return;
+                    act('raise', amt);
+                  }}
+                >
+                  <Text style={styles.actionButtonText}>Raise</Text>
+                </Pressable>
+              </View>
+            )}
+            {availableActions.canAllIn && (
+              <Pressable
+                style={[styles.actionButton, styles.allInButton]}
+                onPress={() => act('all-in')}
+              >
+                <Text style={styles.actionButtonText}>All-in</Text>
+              </Pressable>
+            )}
           </View>
 
           {/* Host controls inline */}
@@ -411,6 +484,32 @@ export default function GameScreen() {
       </View>
 
       <GameChat gameCode={gameCode} />
+
+      {/* Error Modal */}
+      <Modal
+        visible={showErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowErrorModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Not Enough Players</Text>
+            <Text style={styles.modalMessage}>
+              You need at least 2 players seated at the table to start the game.
+            </Text>
+            <Pressable
+              style={styles.modalButton}
+              onPress={() => setShowErrorModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
