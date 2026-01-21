@@ -13,6 +13,7 @@ import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { PlayingCard, CardSuit } from '../../components/PlayingCard';
 import { GameChat } from '../../components/GameChat';
+import { PokerChip } from '../../components/PokerChip';
 
 const isWeb = Platform.OS === 'web';
 
@@ -238,6 +239,20 @@ export default function GameScreen() {
           <View style={styles.phaseContainer}>
             <Text style={styles.phaseText}>{game.phase.toUpperCase()}</Text>
           </View>
+
+          {/* Bet chips in center of table */}
+          <View style={styles.centerBetsContainer}>
+            {game.players
+              .filter((p) => p.currentBet > 0 && !p.hasFolded)
+              .map((p, idx) => (
+                <PokerChip
+                  key={p.id}
+                  type="bet"
+                  amount={p.currentBet}
+                  style={[styles.centerBet, { marginLeft: idx * 30 }]}
+                />
+              ))}
+          </View>
         </View>
 
         {/* Player seats around the table */}
@@ -276,6 +291,22 @@ export default function GameScreen() {
                     {isHostPlayer ? ' ★' : ''}
                   </Text>
                   <Text style={styles.seatStack}>{seat.player.stack}</Text>
+                  
+                  {/* Dealer button */}
+                  {seat.seatIndex === game.dealerPosition && (
+                    <PokerChip type="dealer" style={styles.dealerChip} />
+                  )}
+                  
+                  {/* Small blind chip */}
+                  {seat.seatIndex === game.smallBlindPosition && game.phase !== 'waiting' && (
+                    <PokerChip type="small-blind" style={styles.blindChip} />
+                  )}
+                  
+                  {/* Big blind chip */}
+                  {seat.seatIndex === game.bigBlindPosition && game.phase !== 'waiting' && (
+                    <PokerChip type="big-blind" style={styles.blindChip} />
+                  )}
+                  
                   {positionLabel(seat.seatIndex) ? (
                     <View style={styles.positionBadge}>
                       <Text style={styles.positionBadgeText}>{positionLabel(seat.seatIndex)}</Text>
@@ -684,6 +715,28 @@ const webStyles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.4)',
     letterSpacing: 2,
+  },
+  centerBetsContainer: {
+    position: 'absolute',
+    top: '60%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    maxWidth: '80%',
+    justifyContent: 'center',
+  },
+  centerBet: {
+    marginHorizontal: 4,
+  },
+  dealerChip: {
+    position: 'absolute',
+    right: -10,
+    top: -5,
+  },
+  blindChip: {
+    position: 'absolute',
+    left: -10,
+    top: -5,
   },
 
   // Seat styles
