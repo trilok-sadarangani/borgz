@@ -106,15 +106,31 @@ function makeNetworkErrorMessage(baseUrl: string, path: string, error: unknown, 
     .join(' ');
 }
 
+function getAuthHeaders(): Record<string, string> {
+  try {
+    // Import auth store dynamically to avoid circular dependency
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useAuthStore } = require('../store/authStore');
+    const token = useAuthStore.getState().token;
+    if (token) {
+      return { 'Authorization': `Bearer ${token}` };
+    }
+  } catch (e) {
+    // Auth store not available or token not set
+  }
+  return {};
+}
+
 export async function apiPost<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
   const baseUrl = getApiBaseUrl();
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
+    const authHeaders = getAuthHeaders();
     const res = await fetchWithTimeout(
       `${baseUrl}${path}`,
       {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify(body),
       },
       timeoutMs
@@ -155,7 +171,12 @@ export async function apiGet<T>(path: string, opts?: { timeoutMs?: number }): Pr
   const baseUrl = getApiBaseUrl();
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const res = await fetchWithTimeout(`${baseUrl}${path}`, undefined, timeoutMs);
+    const authHeaders = getAuthHeaders();
+    const res = await fetchWithTimeout(
+      `${baseUrl}${path}`, 
+      { headers: authHeaders }, 
+      timeoutMs
+    );
     return await parseJsonOrThrow<T>(res);
   } catch (error) {
     const msg = makeNetworkErrorMessage(baseUrl, path, error, timeoutMs);

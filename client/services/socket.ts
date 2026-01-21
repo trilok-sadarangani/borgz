@@ -16,12 +16,29 @@ export interface PlayerActionPayload {
 
 let socket: Socket | null = null;
 
+function getAuthToken(): string | null {
+  try {
+    // Import auth store dynamically to avoid circular dependency
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useAuthStore } = require('../store/authStore');
+    return useAuthStore.getState().token || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export function getSocket(): Socket {
   if (socket) return socket;
   const baseUrl = getApiBaseUrl();
+  const token = getAuthToken();
+  
   socket = io(baseUrl, {
     transports: ['websocket'],
     autoConnect: false,
+    auth: token ? { token } : undefined,
+    extraHeaders: token ? {
+      'Authorization': `Bearer ${token}`
+    } : undefined,
   });
   return socket;
 }
