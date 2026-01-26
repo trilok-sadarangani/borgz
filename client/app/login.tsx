@@ -229,30 +229,35 @@ export default function LoginScreen() {
 
   // If already authenticated, redirect to main app (handled below with <Redirect>)
 
-  // Handle all auth responses
+  // Handle all auth responses (combined into single effect to avoid double processing)
   useEffect(() => {
     const responses = [googleResponse, appleResponse, response];
+    let handled = false;
+    
     for (const res of responses) {
-      if (res?.type === 'success') {
+      if (!res) continue;
+      
+      // Success case
+      if (res.type === 'success') {
         const accessToken = (res.params as any)?.access_token as string | undefined;
-        if (accessToken) {
+        if (accessToken && !handled) {
+          handled = true;
           void loginWithAuth0AccessToken(accessToken);
           return;
         }
       }
-    }
-  }, [googleResponse, appleResponse, response, loginWithAuth0AccessToken]);
-
-  useEffect(() => {
-    const responses = [googleResponse, appleResponse, response];
-    for (const res of responses) {
-      const msg = explainAuth0Failure(res as any, { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience }, { redirectUri });
-      if (msg) {
-        setAuth0Error(msg);
-        return;
+      
+      // Error case
+      if (!handled) {
+        const msg = explainAuth0Failure(res as any, { domain: auth0Domain, clientId: auth0ClientId, audience: auth0Audience }, { redirectUri });
+        if (msg) {
+          handled = true;
+          setAuth0Error(msg);
+          return;
+        }
       }
     }
-  }, [googleResponse, appleResponse, response, auth0Domain, auth0ClientId, auth0Audience, redirectUri]);
+  }, [googleResponse, appleResponse, response, loginWithAuth0AccessToken, auth0Domain, auth0ClientId, auth0Audience, redirectUri]);
 
   if (!hasHydrated || loading) {
     return Platform.OS === 'web' 
