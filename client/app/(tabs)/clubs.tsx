@@ -104,17 +104,31 @@ export default function ClubsScreen() {
     await Promise.allSettled(currentClubs.map((c) => fetchClubGames(token, c.id)));
   }, [token, fetchClubGames]);
 
-  // Open buy-in modal for a game
+  // Open buy-in modal for a game (or rejoin if already seated)
   const handleOpenBuyIn = useCallback(async (gameCode: string) => {
     setPendingGameCode(gameCode);
     setJoiningGame(true);
     const gameState = await getGameInfo(gameCode);
     setJoiningGame(false);
+    
     if (gameState) {
-      setPendingGameState(gameState);
-      setShowBuyInModal(true);
+      // Check if player is already seated in this game
+      const alreadySeated = player && gameState.players.some(p => p.id === player.id);
+      
+      if (alreadySeated) {
+        // Player is already in the game, just reconnect via socket
+        useGameStore.setState({ gameCode, game: gameState, error: null });
+        connect();
+        const socket = await import('../../services/socket');
+        socket.joinGame({ gameCode, playerId: player.id });
+        router.replace('/(tabs)/game');
+      } else {
+        // Player needs to buy in
+        setPendingGameState(gameState);
+        setShowBuyInModal(true);
+      }
     }
-  }, [getGameInfo]);
+  }, [getGameInfo, player, connect, router]);
 
   // Confirm buy-in and join game
   const handleConfirmBuyIn = useCallback(async (buyIn: number) => {

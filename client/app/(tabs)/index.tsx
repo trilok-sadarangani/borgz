@@ -24,18 +24,33 @@ function WebHero() {
   
   const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
 
-  // Open buy-in modal for a game
+  // Open buy-in modal for a game (or rejoin if already seated)
   const handleOpenBuyIn = useCallback(async (gameCode: string) => {
     setPendingGameCode(gameCode);
     setJoiningGame(true);
     const gameState = await gameStore.getGameInfo(gameCode);
     setJoiningGame(false);
+    
     if (gameState) {
-      setPendingGameState(gameState);
-      setShowBuyInModal(true);
-      setShowJoinModal(false);
+      // Check if player is already seated in this game
+      const alreadySeated = player && gameState.players.some(p => p.id === player.id);
+      
+      if (alreadySeated) {
+        // Player is already in the game, just reconnect via socket
+        useGameStore.setState({ gameCode, game: gameState, error: null });
+        gameStore.connect();
+        const socket = await import('../../services/socket');
+        socket.joinGame({ gameCode, playerId: player.id });
+        setShowJoinModal(false);
+        router.push('/(tabs)/game');
+      } else {
+        // Player needs to buy in
+        setPendingGameState(gameState);
+        setShowBuyInModal(true);
+        setShowJoinModal(false);
+      }
     }
-  }, [gameStore]);
+  }, [gameStore, player, router]);
 
   // Confirm buy-in and join game
   const handleConfirmBuyIn = useCallback(async (buyIn: number) => {
