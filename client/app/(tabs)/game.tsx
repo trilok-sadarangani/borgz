@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,16 @@ export default function GameScreen() {
   const [rebuyAmount, setRebuyAmount] = useState('1000');
   const [showHistory, setShowHistory] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+
+  // Auto-advance to next hand after 4 seconds
+  useEffect(() => {
+    if (game?.phase === 'finished' && game.lastHandResult && isHost && gameCode && player) {
+      const timer = setTimeout(() => {
+        nextHand(gameCode, player.id);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [game?.phase, game?.lastHandResult, isHost, gameCode, nextHand, player]);
 
   const me = useMemo(
     () => (player ? game?.players.find((p) => p.id === player.id) || null : null),
@@ -109,7 +119,8 @@ export default function GameScreen() {
 
   // Determine which actions are available based on game state
   const availableActions = useMemo(() => {
-    if (!game || !me || !isMyTurn) {
+    // Hide all buttons if hand is finished
+    if (!game || !me || !isMyTurn || game.phase === 'finished' || game.phase === 'showdown') {
       return {
         canFold: false,
         canCheck: false,
@@ -383,7 +394,11 @@ export default function GameScreen() {
           {game.phase === 'finished' && game.lastHandResult ? (
             <View style={styles.resultOverlay}>
               <Text style={styles.resultText}>
-                {game.lastHandResult.winners.map((w) => `${w.playerId} won ${w.amount}`).join(' | ')}
+                {game.lastHandResult.winners.map((w) => {
+                  const winner = game.players.find(p => p.id === w.playerId);
+                  const winnerName = winner?.name || 'Player';
+                  return `${winnerName} won $${w.amount}`;
+                }).join(' | ')}
               </Text>
             </View>
           ) : null}
