@@ -109,7 +109,20 @@ export default function GameScreen() {
 
   // Determine which actions are available based on game state
   const availableActions = useMemo(() => {
-    if (!game || !me || !isMyTurn || !me.cards || me.cards.length === 0) {
+    if (!game || !me || !isMyTurn) {
+      return {
+        canFold: false,
+        canCheck: false,
+        canCall: false,
+        canRaise: false,
+        canAllIn: false,
+      };
+    }
+
+    // If player has no cards, they can't take regular actions
+    // (They might be waiting for cards to be dealt)
+    const hasCards = me.cards && me.cards.length > 0;
+    if (!hasCards && game.phase !== 'waiting') {
       return {
         canFold: false,
         canCheck: false,
